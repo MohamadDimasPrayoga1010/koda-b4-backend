@@ -59,4 +59,4 @@ func VerifToken() gin.HandlerFunc {
 		ctx.Set("userRole", claims.Role)
 		ctx.Next()
 	}
-}
+} 
