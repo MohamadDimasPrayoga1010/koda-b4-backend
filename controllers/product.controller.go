@@ -239,7 +239,7 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 			Message: "Invalid request body",
 			Data:    err.Error(),
 		})
-		return
+		return 
 	}
 
 	query := `
