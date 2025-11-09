@@ -10,5 +10,7 @@ func InitRouter (pg *pgxpool.Pool) *gin.Engine{
 	r := gin.Default()
 
 	AuthRoutes(r, pg)
+	ProductRoutes(r, pg)
+	OrderRoutes(r, pg)
 	return r
 }
