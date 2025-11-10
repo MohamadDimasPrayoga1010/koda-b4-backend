@@ -29,6 +29,7 @@ type ProductResponse struct {
 	Stock       int            `json:"stock"`
 	CategoryID  int64          `json:"category_id"`
 	VariantID   int64          `json:"variant_id"`
+	UpdatedAt   time.Time       `json:"updated_at"`
 	CreatedAt   time.Time      `json:"created_at"`
 	Images      []ProductImage `json:"images,omitempty"`
 	Sizes       []Size         `json:"sizes,omitempty"`
