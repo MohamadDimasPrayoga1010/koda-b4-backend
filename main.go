@@ -21,6 +21,6 @@ func main() {
 
 	docs.SwaggerInfo.BasePath = "/"
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	// fmt.Println(libs.HashPassword("admin123"))
+	
 	r.Run(":8085")
 }
