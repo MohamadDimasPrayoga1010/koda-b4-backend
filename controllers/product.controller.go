@@ -31,7 +31,7 @@ type ProductController struct {
 // @Param stock formData int true "Stock"
 // @Param category_id formData int false "Category ID"
 // @Param variant_id formData int false "Variant ID"
-// @Param sizes formData []int false "Size IDs (multiple allowed)"
+// @Param sizes formData string false "List of size IDs (example: 1,2,3)"
 // @Param images formData file false "Upload product image (repeat for multiple)"
 // @Success 201 {object} models.Response
 // @Failure 400 {object} models.Response
@@ -46,6 +46,21 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 			Data:    err.Error(),
 		})
 		return
+	}
+
+	if len(req.Sizes) == 0 {
+		sizesStr := ctx.PostForm("sizes")
+		if sizesStr != "" {
+			for _, s := range strings.Split(sizesStr, ",") {
+				s = strings.TrimSpace(s)
+				if s == "" {
+					continue
+				}
+				if id, err := strconv.ParseInt(s, 10, 64); err == nil {
+					req.Sizes = append(req.Sizes, id)
+				}
+			}
+		}
 	}
 
 	query := `
@@ -128,30 +143,33 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 
 		product.Images = append(product.Images, models.ProductImage{
 			ProductID: product.ID,
-			Image:     filename, 
+			Image:     filename,
 			UpdatedAt: time.Now(),
 		})
 	}
 
-
 	for _, sizeID := range req.Sizes {
 		var size models.Size
-
-		err := pc.DB.QueryRow(context.Background(),
-			`SELECT id, name, additional_price FROM sizes WHERE id = $1`, sizeID,
+		err := pc.DB.QueryRow(
+			context.Background(),
+			`SELECT id, name, additional_price FROM sizes WHERE id = $1`,
+			sizeID,
 		).Scan(&size.ID, &size.Name, &size.AdditionalPrice)
 
 		if err != nil {
 			continue
 		}
 
-		_, err = pc.DB.Exec(context.Background(),
+		_, err = pc.DB.Exec(
+			context.Background(),
 			`INSERT INTO product_sizes (product_id, size_id) VALUES ($1, $2)`,
 			product.ID, sizeID,
 		)
-		if err == nil {
-			product.Sizes = append(product.Sizes, size)
+		if err != nil {
+			continue
 		}
+
+		product.Sizes = append(product.Sizes, size)
 	}
 
 	ctx.JSON(201, models.Response{
@@ -161,18 +179,17 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 	})
 }
 
-
-
-
 // GetProduct godoc
 // @Summary Get list of products
-// @Description Mengambil daftar products dengan pagination dan optional search
+// @Description Mengambil daftar products dengan pagination, optional search, dan sorting
 // @Tags Products
 // @Accept json
 // @Produce json
 // @Param page query int false "Page number" default(1)
 // @Param limit query int false "Limit per page" default(10)
 // @Param search query string false "Search by title or description"
+// @Param sort_by query string false "Sort by field (id, title, base_price, created_at)" default(created_at)
+// @Param order query string false "Sort order (asc/desc)" default(desc)
 // @Success 200 {object} models.Response
 // @Failure 500 {object} models.Response
 // @Router /admin/products [get]
@@ -180,6 +197,21 @@ func (pc *ProductController) GetProduct(ctx *gin.Context) {
 	search := ctx.Query("search")
 	limitStr := ctx.DefaultQuery("limit", "10")
 	pageStr := ctx.DefaultQuery("page", "1")
+	sortBy := ctx.DefaultQuery("sort_by", "created_at")
+	order := strings.ToUpper(ctx.DefaultQuery("order", "DESC"))
+
+	allowedSortFields := map[string]bool{
+		"id":         true,
+		"title":      true,
+		"base_price": true,
+		"created_at": true,
+	}
+	if !allowedSortFields[sortBy] {
+		sortBy = "created_at"
+	}
+	if order != "ASC" && order != "DESC" {
+		order = "DESC"
+	}
 
 	limit, _ := strconv.Atoi(limitStr)
 	page, _ := strconv.Atoi(pageStr)
@@ -189,26 +221,23 @@ func (pc *ProductController) GetProduct(ctx *gin.Context) {
 		SELECT id, title, description, base_price, stock, category_id, variant_id, created_at
 		FROM products
 	`
-
-	var limitation []interface{}
-	if search != "" {
-		query += " AND (LOWER(title) LIKE LOWER($1) OR LOWER(description) LIKE LOWER($1))"
-		limitation = append(limitation, "%"+search+"%")
-	}
+	var args []interface{}
+	argIndex := 1
 
 	if search != "" {
-		query += " ORDER BY id DESC LIMIT $2 OFFSET $3"
-		limitation = append(limitation, limit, offset)
-	} else {
-		query += " ORDER BY id DESC LIMIT $1 OFFSET $2"
-		limitation = append(limitation, limit, offset)
+		query += fmt.Sprintf(" WHERE LOWER(title) LIKE LOWER($%d) OR LOWER(description) LIKE LOWER($%d)", argIndex, argIndex)
+		args = append(args, "%"+search+"%")
+		argIndex++
 	}
 
-	rows, err := pc.DB.Query(context.Background(), query, limitation...)
+	query += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortBy, order, argIndex, argIndex+1)
+	args = append(args, limit, offset)
+
+	rows, err := pc.DB.Query(context.Background(), query, args...)
 	if err != nil {
 		ctx.JSON(500, models.Response{
 			Success: false,
-			Message: "Failed to fetch product",
+			Message: "Failed to fetch products",
 			Data:    err.Error(),
 		})
 		return
@@ -219,14 +248,16 @@ func (pc *ProductController) GetProduct(ctx *gin.Context) {
 
 	for rows.Next() {
 		var p models.ProductResponse
-		err := rows.Scan(&p.ID, &p.Title, &p.Description, &p.BasePrice, &p.Stock, &p.CategoryID, &p.VariantID, &p.CreatedAt)
+		err := rows.Scan(
+			&p.ID, &p.Title, &p.Description,
+			&p.BasePrice, &p.Stock, &p.CategoryID, &p.VariantID, &p.CreatedAt,
+		)
 		if err != nil {
-			fmt.Println("Scan error:", err)
 			continue
 		}
 
 		imgRows, _ := pc.DB.Query(context.Background(),
-			`SELECT image, updated_at, deleted_at FROM product_images WHERE product_id=$1 AND deleted_at`, p.ID)
+			`SELECT image, updated_at, deleted_at FROM product_images WHERE product_id=$1 AND deleted_at IS NULL`, p.ID)
 		for imgRows.Next() {
 			var img models.ProductImage
 			img.ProductID = p.ID
@@ -235,12 +266,12 @@ func (pc *ProductController) GetProduct(ctx *gin.Context) {
 		}
 		imgRows.Close()
 
-		sizeRows, _ := pc.DB.Query(context.Background(), `
-			SELECT s.id, s.name, s.additional_price 
-			FROM sizes s
-			JOIN product_sizes ps ON ps.size_id = s.id
-			WHERE ps.product_id = $1
-		`, p.ID)
+		sizeRows, _ := pc.DB.Query(context.Background(),
+			`SELECT s.id, s.name, s.additional_price 
+			 FROM sizes s
+			 JOIN product_sizes ps ON ps.size_id = s.id
+			 WHERE ps.product_id = $1`,
+			p.ID)
 		for sizeRows.Next() {
 			var s models.Size
 			sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice)
@@ -257,6 +288,8 @@ func (pc *ProductController) GetProduct(ctx *gin.Context) {
 		Data: gin.H{
 			"page":     page,
 			"limit":    limit,
+			"sort_by":  sortBy,
+			"order":    order,
 			"products": products,
 		},
 	})
@@ -271,19 +304,30 @@ func (pc *ProductController) GetProduct(ctx *gin.Context) {
 // @Param id path int true "Product ID"
 // @Success 200 {object} models.Response
 // @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
 // @Router /admin/products/{id} [get]
 func (pc *ProductController) GetProductByID(ctx *gin.Context) {
-	id := ctx.Param("id")
+	idParam := ctx.Param("id")
+	productID, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid product ID",
+			Data:    nil,
+		})
+		return
+	}
 
 	query := `
 		SELECT id, title, description, base_price, stock, category_id, variant_id, created_at
 		FROM products
-		WHERE id = $1 
+		WHERE id = $1
 	`
 
 	var p models.ProductResponse
-	err := pc.DB.QueryRow(context.Background(), query, id).
-		Scan(&p.ID, &p.Title, &p.Description, &p.BasePrice, &p.Stock, &p.CategoryID, &p.VariantID, &p.CreatedAt)
+	err = pc.DB.QueryRow(context.Background(), query, productID).
+		Scan(&p.ID, &p.Title, &p.Description, &p.BasePrice, &p.Stock,
+			&p.CategoryID, &p.VariantID, &p.CreatedAt)
 
 	if err != nil {
 		ctx.JSON(404, models.Response{
@@ -294,28 +338,34 @@ func (pc *ProductController) GetProductByID(ctx *gin.Context) {
 		return
 	}
 
-	imgRows, _ := pc.DB.Query(context.Background(),
-		`SELECT image, updated_at, deleted_at FROM product_images WHERE product_id=$1`, p.ID)
-	for imgRows.Next() {
-		var img models.ProductImage
-		img.ProductID = p.ID
-		imgRows.Scan(&img.Image, &img.UpdatedAt, &img.DeletedAt)
-		p.Images = append(p.Images, img)
+	imgRows, err := pc.DB.Query(context.Background(),
+		`SELECT image, updated_at, deleted_at FROM product_images WHERE product_id=$1 AND deleted_at IS NULL`, p.ID)
+	if err == nil {
+		for imgRows.Next() {
+			var img models.ProductImage
+			img.ProductID = p.ID
+			if err := imgRows.Scan(&img.Image, &img.UpdatedAt, &img.DeletedAt); err == nil {
+				p.Images = append(p.Images, img)
+			}
+		}
+		imgRows.Close()
 	}
-	imgRows.Close()
 
-	sizeRows, _ := pc.DB.Query(context.Background(), `
-		SELECT s.id, s.name, s.additional_price
-		FROM sizes s
-		JOIN product_sizes ps ON ps.size_id = s.id
-		WHERE ps.product_id = $1
-	`, p.ID)
-	for sizeRows.Next() {
-		var s models.Size
-		sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice)
-		p.Sizes = append(p.Sizes, s)
+	sizeRows, err := pc.DB.Query(context.Background(),
+		`SELECT s.id, s.name, s.additional_price
+		 FROM sizes s
+		 JOIN product_sizes ps ON ps.size_id = s.id
+		 WHERE ps.product_id = $1`,
+		p.ID)
+	if err == nil {
+		for sizeRows.Next() {
+			var s models.Size
+			if err := sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice); err == nil {
+				p.Sizes = append(p.Sizes, s)
+			}
+		}
+		sizeRows.Close()
 	}
-	sizeRows.Close()
 
 	ctx.JSON(200, models.Response{
 		Success: true,
@@ -325,44 +375,55 @@ func (pc *ProductController) GetProductByID(ctx *gin.Context) {
 }
 
 // UpdateProduct godoc
-// @Summary Update a product
-// @Description Mengupdate product beserta images dan sizes berdasarkan ID
+// @Summary Update product
+// @Description Update product data by ID, including multiple sizes and images
 // @Tags Products
-// @Accept json
+// @Accept multipart/form-data
 // @Produce json
 // @Param id path int true "Product ID"
-// @Param body body models.ProductRequest true "Product request body"
-// @Success 200 {object} models.Response
-// @Failure 400 {object} models.Response
-// @Failure 500 {object} models.Response
+// @Param title formData string true "Product title"
+// @Param description formData string false "Product description"
+// @Param base_price formData number true "Base price of the product"
+// @Param stock formData int true "Stock quantity"
+// @Param category_id formData int false "Category ID"
+// @Param variant_id formData int false "Variant ID"
+// @Param sizes formData int false "List of size IDs (send multiple 'sizes' params for multiple sizes)"
+// @Param images formData file false "Product images (send multiple 'images' files for multiple uploads)"
+// @Success 200 {object} models.Response "Product updated successfully"
+// @Failure 400 {object} models.Response "Invalid request body"
+// @Failure 404 {object} models.Response "Product not found"
 // @Router /admin/products/{id} [patch]
 func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 	productID := ctx.Param("id")
 
 	var req models.ProductRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
+	if err := ctx.ShouldBind(&req); err != nil {
 		ctx.JSON(400, models.Response{
 			Success: false,
 			Message: "Invalid request body",
 			Data:    err.Error(),
 		})
-		return 
+		return
 	}
+
 
 	query := `
 		UPDATE products
 		SET title = $1, description = $2, base_price = $3, stock = $4,
 			category_id = $5, variant_id = $6, updated_at = NOW()
 		WHERE id = $7
-		RETURNING id, title, description, base_price, stock, category_id, variant_id, created_at
+		RETURNING id, title, description, base_price, stock, category_id, variant_id, created_at, updated_at
 	`
 	var product models.ProductResponse
 	err := pc.DB.QueryRow(context.Background(), query,
 		req.Title, req.Description, req.BasePrice, req.Stock,
 		req.CategoryID, req.VariantID, productID,
-	).Scan(&product.ID, &product.Title, &product.Description, &product.BasePrice,
-		&product.Stock, &product.CategoryID, &product.VariantID, &product.CreatedAt)
-
+	).Scan(
+		&product.ID, &product.Title, &product.Description,
+		&product.BasePrice, &product.Stock,
+		&product.CategoryID, &product.VariantID,
+		&product.CreatedAt, &product.UpdatedAt,
+	)
 	if err != nil {
 		ctx.JSON(500, models.Response{
 			Success: false,
@@ -372,26 +433,39 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 		return
 	}
 
+	uploadDir := "./uploads/products"
+	os.MkdirAll(uploadDir, os.ModePerm)
+
+
 	pc.DB.Exec(context.Background(), `DELETE FROM product_images WHERE product_id = $1`, product.ID)
-	for _, img := range req.Images {
-		_, err := pc.DB.Exec(context.Background(),
-			`INSERT INTO product_images (product_id, image) VALUES ($1, $2)`,
-			product.ID, img,
-		)
-		if err == nil {
-			product.Images = append(product.Images, models.ProductImage{ProductID: product.ID, Image: img.Filename})
+
+	for _, file := range req.Images {
+		ext := strings.ToLower(filepath.Ext(file.Filename))
+		filename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), strings.TrimSuffix(file.Filename, ext), ext)
+		fullPath := filepath.Join(uploadDir, filename)
+
+		if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
+			continue
 		}
+
+		pc.DB.Exec(context.Background(),
+			`INSERT INTO product_images (product_id, image) VALUES ($1, $2)`,
+			product.ID, filename,
+		)
+
+		product.Images = append(product.Images, models.ProductImage{
+			ProductID: product.ID,
+			Image:     filename,
+			UpdatedAt: time.Now(),
+		})
 	}
 
 	pc.DB.Exec(context.Background(), `DELETE FROM product_sizes WHERE product_id = $1`, product.ID)
 	for _, sizeID := range req.Sizes {
-		_, err := pc.DB.Exec(context.Background(),
+		pc.DB.Exec(context.Background(),
 			`INSERT INTO product_sizes (product_id, size_id) VALUES ($1, $2)`,
 			product.ID, sizeID,
 		)
-		if err == nil {
-			product.Sizes = append(product.Sizes, models.Size{ID: sizeID})
-		}
 	}
 
 	ctx.JSON(200, models.Response{
@@ -441,5 +515,3 @@ func (pc *ProductController) DeleteProduct(ctx *gin.Context) {
 		Message: "Product deleted successfully",
 	})
 }
-
-
