@@ -1,6 +1,9 @@
 package models
 
-import "time"
+import (
+	"mime/multipart"
+	"time"
+)
 
 type UserList struct {
 	ID        int64     `json:"id"`
@@ -24,6 +27,6 @@ type AdminUserRequest struct {
 	Password string `json:"password,omitempty"`
 	Phone    string `json:"phone"`
 	Address  string `json:"address"`
-	Image    string `json:"image"`
+	Image    *multipart.FileHeader `json:"image"`
 	Role     string `json:"role" binding:"required"` 
 }
