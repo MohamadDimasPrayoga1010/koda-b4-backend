@@ -1,6 +1,7 @@
 package routers
 
 import (
+	"main/libs"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
@@ -9,6 +10,7 @@ import (
 func InitRouter (pg *pgxpool.Pool) *gin.Engine{
 	r := gin.Default()
 
+	r.Use(libs.SetupCORS())
 	AuthRoutes(r, pg)
 	ProductRoutes(r, pg)
 	OrderRoutes(r, pg)
