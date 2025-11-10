@@ -4,6 +4,7 @@ import (
 	"context"
 	"fmt"
 	"strings"
+	"time"
 
 	"main/libs"
 	"main/models"
@@ -22,7 +23,7 @@ type AuthController struct {
 // @Tags         Auth
 // @Accept       json
 // @Produce      json
-// @Param        user  body      models.User  true  "User Register"
+// @Param        user  body      models.UserRegister  true  "User Register Payload"
 // @Success      201  {object}  models.Response{data=models.UserResponse}
 // @Failure      400  {object}  models.Response
 // @Failure      409  {object}  models.Response
@@ -38,7 +39,7 @@ func (ac *AuthController) Register(ctx *gin.Context) {
 		})
 		return
 	}
-	fmt.Println("inputan password: ",user.Password)
+	fmt.Println("inputan password: ", user.Password)
 
 	hashedPassword, err := libs.HashPassword(user.Password)
 	if err != nil {
@@ -89,7 +90,7 @@ func (ac *AuthController) Register(ctx *gin.Context) {
 // @Tags         Auth
 // @Accept       json
 // @Produce      json
-// @Param        login  body      map[string]string  true  "Login Payload"
+// @Param        login  body      models.UserLogin  true  "Login Payload"
 // @Success      200  {object}  models.Response{data=models.UserResponse}
 // @Failure      400  {object}  models.Response
 // @Failure      401  {object}  models.Response
@@ -166,4 +167,172 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 		Message: "Login success",
 		Data:    userResp,
 	})
+}
+
+// ForgotPassword godoc
+// @Summary Request OTP for forgot password
+// @Description Send OTP to user's email
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body models.ForgotPasswordRequest true "Email for forgot password"
+// @Success 200 {object} models.Response
+// @Failure 400 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Router /auth/forgot-password [post]
+func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
+	var req models.ForgotPasswordRequest
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid request body",
+		})
+		return
+	}
+	var exists bool
+	err := ac.DB.QueryRow(context.Background(), "SELECT EXISTS(SELECT 1 FROM users WHERE email=$1)", req.Email).Scan(&exists)
+	if err != nil || !exists {
+		ctx.JSON(404, models.Response{Success: false, Message: "Email not found"})
+		return
+	}
+
+	otp := libs.GenerateOTP(6)
+	expire := time.Now().Add(5 * time.Minute)
+
+	_, err = ac.DB.Exec(context.Background(),
+		"UPDATE users SET reset_otp=$1, reset_expires=$2 WHERE email=$3",
+		otp, expire, req.Email,
+	)
+
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to generate token",
+		})
+		return
+	}
+
+	ctx.JSON(200, models.Response{
+		Success: true,
+		Message: "Success generate token send to email",
+	})
+
+}
+
+// VerifyOTP godoc
+// @Summary Verify OTP
+// @Description Verify OTP for password reset
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body models.VerifyOTPRequest true "Verify OTP payload"
+// @Success 200 {object} models.Response
+// @Failure 400 {object} models.Response
+// @Failure 401 {object} models.Response
+// @Router /auth/verify-otp [post]
+func (ac *AuthController) VerifyOTP(ctx *gin.Context) {
+	var req models.VerifyOTPRequest
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid request body",
+		})
+		return
+	}
+
+	var dbOTP string
+	var expire time.Time
+	err := ac.DB.QueryRow(context.Background(),
+		"SELECT reset_otp, reset_expires FROM users WHERE email=$1", req.Email,
+	).Scan(&dbOTP, &expire)
+	if err != nil || dbOTP == "" {
+		ctx.JSON(401, models.Response{
+			Success: false, 
+			Message: "Invalid OTP"})
+		return
+	}
+
+	if time.Now().After(expire) {
+		ctx.JSON(401, models.Response{
+			Success: false, 
+			Message: "OTP expired"})
+		return
+	}
+
+	if dbOTP != req.OTP {
+		ctx.JSON(401, models.Response{
+			Success: false, 
+			Message: "OTP incorrect"})
+		return
+	}
+
+	token, _ := libs.GenerateTokenForReset(req.Email)
+
+	ac.DB.Exec(context.Background(),
+		"UPDATE users SET reset_token=$1 WHERE email=$2", token, req.Email,
+	)
+
+	ctx.JSON(200, models.Response{
+		Success: true,
+		Message: "OTP verified successfully",
+		Data:    map[string]string{"token": token},
+	})
+
+}
+
+// ResetPassword godoc
+// @Summary Reset password
+// @Description Reset password using verified OTP token
+// @Tags Auth
+// @Accept json
+// @Produce json
+// @Param body body models.ResetPasswordRequest true "Reset password payload"
+// @Success 200 {object} models.Response
+// @Failure 400 {object} models.Response
+// @Failure 401 {object} models.Response
+// @Router /auth/reset-password [patch]
+func (ac *AuthController) ResetPassword(ctx *gin.Context) {
+	var req models.ResetPasswordRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(400, models.Response{
+			Success: false, 
+			Message: "Invalid request body"})
+		return
+	}
+
+	var email string
+	err := ac.DB.QueryRow(context.Background(),
+		"SELECT email FROM users WHERE reset_token=$1", req.Token,
+	).Scan(&email)
+	if err != nil {
+		ctx.JSON(401, models.Response{
+			Success: false, 
+			Message: "Invalid or expired token"})
+		return
+	}
+
+	hashed, err := libs.HashPassword(req.Password)
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false, 
+			Message: "Failed to hash password"})
+		return
+	}
+
+	_, err = ac.DB.Exec(context.Background(),
+		"UPDATE users SET password=$1, reset_token=NULL, reset_otp=NULL, reset_expires=NULL WHERE email=$2",
+		hashed, email,
+	)
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false, 
+			Message: "Failed to reset password"})
+		return
+	}
+
+	ctx.JSON(200, models.Response{
+		Success: true, 
+		Message: "Password has been reset successfully"})
 }
