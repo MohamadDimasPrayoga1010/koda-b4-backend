@@ -13,7 +13,8 @@ func InitRouter (pg *pgxpool.Pool) *gin.Engine{
 	r.Use(libs.SetupCORS())
 	AuthRoutes(r, pg)
 	ProductRoutes(r, pg)
-	OrderRoutes(r, pg)
+	TransactionRoutes(r, pg)
 	AdminUserRoutes(r, pg)
+	CategoryRoutes(r, pg)
 	return r
 }
