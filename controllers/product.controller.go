@@ -515,3 +515,265 @@ func (pc *ProductController) DeleteProduct(ctx *gin.Context) {
 		Message: "Product deleted successfully",
 	})
 }
+
+// GetProductImages godoc
+// @Summary Get all images of a product
+// @Description Mengambil semua gambar dari product berdasarkan product ID
+// @Tags Products
+// @Accept json
+// @Produce json
+// @Param id path int true "Product ID"
+// @Success 200 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
+// @Router /product/{id}/images [get]
+func (pc *ProductController) GetProductImages(ctx *gin.Context) {
+	productIDParam := ctx.Param("id")
+	productID, err := strconv.ParseInt(productIDParam, 10, 64)
+	if err != nil {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid product ID",
+		})
+		return
+	}
+
+	rows, err := pc.DB.Query(context.Background(),
+		`SELECT row_number() OVER (), image, updated_at, deleted_at
+		 FROM product_images 
+		 WHERE product_id=$1 AND deleted_at IS NULL`, productID)
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to fetch product images",
+			Data:    err.Error(),
+		})
+		return
+	}
+	defer rows.Close()
+
+	var images []models.ProductImage
+	for rows.Next() {
+		var img models.ProductImage
+		var idx int
+		if err := rows.Scan(&idx, &img.Image, &img.UpdatedAt, &img.DeletedAt); err != nil {
+			continue
+		}
+		img.ProductID = productID
+		images = append(images, img)
+	}
+
+	if len(images) == 0 {
+		ctx.JSON(404, models.Response{
+			Success: false,
+			Message: "No images found for this product",
+		})
+		return
+	}
+
+	ctx.JSON(200, models.Response{
+		Success: true,
+		Message: "Product images fetched successfully",
+		Data:    images,
+	})
+}
+
+// GetProductImageByID godoc
+// @Summary Get a single image of a product
+// @Description Mengambil satu gambar dari product berdasarkan product ID dan image ID
+// @Tags Products
+// @Accept json
+// @Produce json
+// @Param id path int true "Product ID"
+// @Param image_id path int true "Image ID"
+// @Success 200 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
+// @Router /product/{id}/images/{image_id} [get]
+func (pc *ProductController) GetProductImageByID(ctx *gin.Context) {
+	productIDParam := ctx.Param("id")
+	imageIDParam := ctx.Param("image_id")
+
+	productID, err1 := strconv.ParseInt(productIDParam, 10, 64)
+	imageID, err2 := strconv.ParseInt(imageIDParam, 10, 64)
+	if err1 != nil || err2 != nil {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid product ID or image ID",
+		})
+		return
+	}
+
+	var img models.ProductImage
+	err := pc.DB.QueryRow(context.Background(),
+		`SELECT image, updated_at, deleted_at
+		 FROM product_images 
+		 WHERE product_id=$1 AND id=$2 AND deleted_at IS NULL`,
+		productID, imageID).Scan(&img.Image, &img.UpdatedAt, &img.DeletedAt)
+
+	if err != nil {
+		ctx.JSON(404, models.Response{
+			Success: false,
+			Message: "Image not found",
+		})
+		return
+	}
+
+	img.ProductID = productID
+
+	ctx.JSON(200, models.Response{
+		Success: true,
+		Message: "Product image fetched successfully",
+		Data:    img,
+	})
+}
+
+
+// DeleteProductImage godoc
+// @Summary Delete a product image
+// @Description Menghapus gambar product berdasarkan product ID dan image ID
+// @Tags Products
+// @Accept json
+// @Produce json
+// @Param id path int true "Product ID"
+// @Param image_id path int true "Image ID"
+// @Success 200 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
+// @Router /product/{id}/images/{image_id} [delete]
+func (pc *ProductController) DeleteProductImage(ctx *gin.Context) {
+	productIDParam := ctx.Param("id")
+	imageIDParam := ctx.Param("image_id")
+
+	productID, err1 := strconv.ParseInt(productIDParam, 10, 64)
+	imageID, err2 := strconv.ParseInt(imageIDParam, 10, 64)
+	if err1 != nil || err2 != nil {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid product ID or image ID",
+		})
+		return
+	}
+
+	query := `UPDATE product_images SET deleted_at=NOW() WHERE product_id=$1 AND id=$2 AND deleted_at IS NULL`
+	result, err := pc.DB.Exec(context.Background(), query, productID, imageID)
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to delete product image",
+			Data:    err.Error(),
+		})
+		return
+	}
+
+	if result.RowsAffected() == 0 {
+		ctx.JSON(404, models.Response{
+			Success: false,
+			Message: "Image not found or already deleted",
+		})
+		return
+	}
+
+	ctx.JSON(200, models.Response{
+		Success: true,
+		Message: "Product image deleted successfully",
+	})
+}
+
+// UpdateProductImage godoc
+// @Summary Update a product image
+// @Description Mengupdate / mengganti file gambar product berdasarkan product ID dan image ID
+// @Tags Products
+// @Accept multipart/form-data
+// @Produce json
+// @Param id path int true "Product ID"
+// @Param image_id path int true "Image ID"
+// @Param image formData file true "New product image file (jpg/png, max 2MB)"
+// @Success 200 {object} models.Response
+// @Failure 400 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
+// @Router /product/{id}/images/{image_id} [patch]
+func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
+	productIDParam := ctx.Param("id")
+	imageIDParam := ctx.Param("image_id")
+
+	productID, err1 := strconv.ParseInt(productIDParam, 10, 64)
+	imageID, err2 := strconv.ParseInt(imageIDParam, 10, 64)
+	if err1 != nil || err2 != nil {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid product ID or image ID",
+		})
+		return
+	}
+
+	file, err := ctx.FormFile("image")
+	if err != nil {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Image file is required",
+		})
+		return
+	}
+
+	const maxSize = 2 * 1024 * 1024
+	if file.Size > maxSize {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "File size exceeds 2MB",
+		})
+		return
+	}
+
+	allowedExts := map[string]bool{
+		".jpg":  true,
+		".jpeg": true,
+		".png":  true,
+	}
+	ext := strings.ToLower(filepath.Ext(file.Filename))
+	if !allowedExts[ext] {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid file type",
+		})
+		return
+	}
+
+	uploadDir := "./uploads/products"
+	os.MkdirAll(uploadDir, os.ModePerm)
+	newFilename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), strings.TrimSuffix(file.Filename, ext), ext)
+	fullPath := filepath.Join(uploadDir, newFilename)
+
+	if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to save image file",
+			Data:    err.Error(),
+		})
+		return
+	}
+
+	query := `UPDATE product_images SET image=$1, updated_at=NOW() WHERE product_id=$2 AND id=$3 RETURNING image, updated_at`
+	var updatedImage string
+	var updatedAt time.Time
+	err = pc.DB.QueryRow(context.Background(), query, newFilename, productID, imageID).Scan(&updatedImage, &updatedAt)
+	if err != nil {
+		ctx.JSON(404, models.Response{
+			Success: false,
+			Message: "Image not found",
+		})
+		return
+	}
+
+	ctx.JSON(200, models.Response{
+		Success: true,
+		Message: "Product image updated successfully",
+		Data: models.ProductImage{
+			ProductID: productID,
+			Image:     updatedImage,
+			UpdatedAt: updatedAt,
+		},
+	})
+}
+
