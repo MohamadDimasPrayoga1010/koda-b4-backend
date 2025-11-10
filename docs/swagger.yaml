@@ -1,5 +1,23 @@
 basePath: /
 definitions:
+  models.ForgotPasswordRequest:
+    properties:
+      email:
+        type: string
+    required:
+    - email
+    type: object
+  models.ResetPasswordRequest:
+    properties:
+      password:
+        minLength: 6
+        type: string
+      token:
+        type: string
+    required:
+    - password
+    - token
+    type: object
   models.Response:
     properties:
       data: {}
@@ -8,20 +26,31 @@ definitions:
       success:
         type: boolean
     type: object
-  models.User:
+  models.UserLogin:
     properties:
-      created_at:
+      email:
         type: string
+      password:
+        type: string
+    required:
+    - email
+    - password
+    type: object
+  models.UserRegister:
+    properties:
       email:
         type: string
       fullname:
         type: string
-      id:
-        type: integer
+      password:
+        minLength: 6
+        type: string
       role:
         type: string
-      updated_at:
-        type: string
+    required:
+    - email
+    - fullname
+    - password
     type: object
   models.UserResponse:
     properties:
@@ -36,6 +65,16 @@ definitions:
       token:
         type: string
     type: object
+  models.VerifyOTPRequest:
+    properties:
+      email:
+        type: string
+      otp:
+        type: string
+    required:
+    - email
+    - otp
+    type: object
 host: localhost:8085
 info:
   contact: {}
@@ -43,6 +82,751 @@ info:
   title: Coffee Shop API
   version: "1.0"
 paths:
+  /admin/categories:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil daftar semua kategori
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Get all categories
+      tags:
+      - Categories
+    post:
+      consumes:
+      - application/json
+      description: Menambahkan kategori baru
+      parameters:
+      - description: Category name
+        in: body
+        name: name
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Create category
+      tags:
+      - Categories
+  /admin/categories/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Menghapus kategori berdasarkan ID
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Delete category
+      tags:
+      - Categories
+    get:
+      consumes:
+      - application/json
+      description: Mengambil kategori berdasarkan ID
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Get category by ID
+      tags:
+      - Categories
+    patch:
+      consumes:
+      - application/json
+      description: Mengupdate kategori berdasarkan ID
+      parameters:
+      - description: Category ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Category name
+        in: body
+        name: name
+        required: true
+        schema:
+          type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Update category
+      tags:
+      - Categories
+  /admin/products:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil daftar products dengan pagination, optional search, dan
+        sorting
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Limit per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search by title or description
+        in: query
+        name: search
+        type: string
+      - default: created_at
+        description: Sort by field (id, title, base_price, created_at)
+        in: query
+        name: sort_by
+        type: string
+      - default: desc
+        description: Sort order (asc/desc)
+        in: query
+        name: order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Get list of products
+      tags:
+      - Products
+    post:
+      consumes:
+      - multipart/form-data
+      description: Membuat produk baru beserta gambar dan ukuran
+      parameters:
+      - description: Product Title
+        in: formData
+        name: title
+        required: true
+        type: string
+      - description: Description
+        in: formData
+        name: description
+        type: string
+      - description: Base Price
+        in: formData
+        name: base_price
+        required: true
+        type: number
+      - description: Stock
+        in: formData
+        name: stock
+        required: true
+        type: integer
+      - description: Category ID
+        in: formData
+        name: category_id
+        type: integer
+      - description: Variant ID
+        in: formData
+        name: variant_id
+        type: integer
+      - description: 'List of size IDs (example: 1,2,3)'
+        in: formData
+        name: sizes
+        type: string
+      - description: Upload product image (repeat for multiple)
+        in: formData
+        name: images
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Create a new product
+      tags:
+      - Products
+  /admin/products/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Menghapus product berdasarkan ID
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Delete a product
+      tags:
+      - Products
+    get:
+      consumes:
+      - application/json
+      description: Mengambil product berdasarkan ID
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Get a product by ID
+      tags:
+      - Products
+    patch:
+      consumes:
+      - multipart/form-data
+      description: Update product data by ID, including multiple sizes and images
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Product title
+        in: formData
+        name: title
+        required: true
+        type: string
+      - description: Product description
+        in: formData
+        name: description
+        type: string
+      - description: Base price of the product
+        in: formData
+        name: base_price
+        required: true
+        type: number
+      - description: Stock quantity
+        in: formData
+        name: stock
+        required: true
+        type: integer
+      - description: Category ID
+        in: formData
+        name: category_id
+        type: integer
+      - description: Variant ID
+        in: formData
+        name: variant_id
+        type: integer
+      - description: List of size IDs (send multiple 'sizes' params for multiple sizes)
+        in: formData
+        name: sizes
+        type: integer
+      - description: Product images (send multiple 'images' files for multiple uploads)
+        in: formData
+        name: images
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Product updated successfully
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Invalid request body
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Product not found
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Update product
+      tags:
+      - Products
+  /admin/transactions:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil daftar semua transaksi dengan pagination, search, dan
+        sort (Admin Only)
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Limit per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search by user fullname or order number
+        in: query
+        name: search
+        type: string
+      - default: '"created_at"'
+        description: Sort by column e.g. created_at, total
+        in: query
+        name: sort
+        type: string
+      - default: '"desc"'
+        description: Sort order asc or desc
+        in: query
+        name: order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Get all transactions
+      tags:
+      - Transactions
+  /admin/transactions/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Admin dapat menghapus transaksi beserta items terkait
+      parameters:
+      - description: Transaction ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Delete transaction
+      tags:
+      - Transactions
+    get:
+      consumes:
+      - application/json
+      description: Mengambil detail transaksi berdasarkan ID (Admin Only)
+      parameters:
+      - description: Transaction ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Get transaction by ID
+      tags:
+      - Transactions
+  /admin/transactions/{id}/status:
+    patch:
+      consumes:
+      - application/json
+      description: Admin dapat mengupdate status transaksi berdasarkan ID
+      parameters:
+      - description: Transaction ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: StatusID payload
+        in: body
+        name: body
+        required: true
+        schema:
+          additionalProperties:
+            type: integer
+          type: object
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Update transaction status
+      tags:
+      - Transactions
+  /admin/users:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil daftar users dengan pagination, optional search, dan
+        sort
+      parameters:
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 10
+        description: Limit per page
+        in: query
+        name: limit
+        type: integer
+      - description: Search by fullname or email
+        in: query
+        name: search
+        type: string
+      - default: created_at
+        description: Sort by field (fullname, email, created_at)
+        in: query
+        name: sort_by
+        type: string
+      - default: desc
+        description: Sort order (asc or desc)
+        in: query
+        name: sort_order
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Get list of users
+      tags:
+      - Users
+    post:
+      consumes:
+      - multipart/form-data
+      description: Menambahkan user baru beserta profile dengan upload gambar
+      parameters:
+      - description: Full Name
+        in: formData
+        name: fullname
+        required: true
+        type: string
+      - description: Email
+        in: formData
+        name: email
+        required: true
+        type: string
+      - description: Password
+        in: formData
+        name: password
+        required: true
+        type: string
+      - description: User Role (admin/user)
+        in: formData
+        name: role
+        required: true
+        type: string
+      - description: Phone number
+        in: formData
+        name: phone
+        type: string
+      - description: Address
+        in: formData
+        name: address
+        type: string
+      - description: Profile Image (max 2MB, jpg/png only)
+        in: formData
+        name: image
+        type: file
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Created
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "409":
+          description: Conflict
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Create a new user
+      tags:
+      - Users
+  /admin/users/{id}:
+    delete:
+      consumes:
+      - application/json
+      description: Menghapus user beserta profile berdasarkan ID
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Delete a user
+      tags:
+      - Users
+    get:
+      consumes:
+      - application/json
+      description: Mengambil detail user beserta profile berdasarkan ID (Admin Only)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Get user by ID
+      tags:
+      - Users
+    patch:
+      consumes:
+      - multipart/form-data
+      description: Mengupdate data user dan profil berdasarkan ID (support upload
+        image)
+      parameters:
+      - description: User ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Full Name
+        in: formData
+        name: fullname
+        type: string
+      - description: Email
+        in: formData
+        name: email
+        type: string
+      - description: Password (optional)
+        in: formData
+        name: password
+        type: string
+      - description: Phone number
+        in: formData
+        name: phone
+        type: string
+      - description: Address
+        in: formData
+        name: address
+        type: string
+      - description: Profile image (max 2MB, jpg/png only)
+        in: formData
+        name: image
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Update user data
+      tags:
+      - Users
+  /auth/forgot-password:
+    post:
+      consumes:
+      - application/json
+      description: Send OTP to user's email
+      parameters:
+      - description: Email for forgot password
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.ForgotPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Request OTP for forgot password
+      tags:
+      - Auth
   /auth/login:
     post:
       consumes:
@@ -54,9 +838,7 @@ paths:
         name: login
         required: true
         schema:
-          additionalProperties:
-            type: string
-          type: object
+          $ref: '#/definitions/models.UserLogin'
       produces:
       - application/json
       responses:
@@ -90,12 +872,12 @@ paths:
       - application/json
       description: Create a new user account
       parameters:
-      - description: User Register
+      - description: User Register Payload
         in: body
         name: user
         required: true
         schema:
-          $ref: '#/definitions/models.User'
+          $ref: '#/definitions/models.UserRegister'
       produces:
       - application/json
       responses:
@@ -123,4 +905,204 @@ paths:
       summary: Register a new user
       tags:
       - Auth
+  /auth/reset-password:
+    patch:
+      consumes:
+      - application/json
+      description: Reset password using verified OTP token
+      parameters:
+      - description: Reset password payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.ResetPasswordRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Reset password
+      tags:
+      - Auth
+  /auth/verify-otp:
+    post:
+      consumes:
+      - application/json
+      description: Verify OTP for password reset
+      parameters:
+      - description: Verify OTP payload
+        in: body
+        name: body
+        required: true
+        schema:
+          $ref: '#/definitions/models.VerifyOTPRequest'
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Verify OTP
+      tags:
+      - Auth
+  /product/{id}/images:
+    get:
+      consumes:
+      - application/json
+      description: Mengambil semua gambar dari product berdasarkan product ID
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Get all images of a product
+      tags:
+      - Products
+  /product/{id}/images/{image_id}:
+    delete:
+      consumes:
+      - application/json
+      description: Menghapus gambar product berdasarkan product ID dan image ID
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Image ID
+        in: path
+        name: image_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Delete a product image
+      tags:
+      - Products
+    get:
+      consumes:
+      - application/json
+      description: Mengambil satu gambar dari product berdasarkan product ID dan image
+        ID
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Image ID
+        in: path
+        name: image_id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Get a single image of a product
+      tags:
+      - Products
+    patch:
+      consumes:
+      - multipart/form-data
+      description: Mengupdate / mengganti file gambar product berdasarkan product
+        ID dan image ID
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      - description: Image ID
+        in: path
+        name: image_id
+        required: true
+        type: integer
+      - description: New product image file (jpg/png, max 2MB)
+        in: formData
+        name: image
+        required: true
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "400":
+          description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "404":
+          description: Not Found
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Update a product image
+      tags:
+      - Products
 swagger: "2.0"
