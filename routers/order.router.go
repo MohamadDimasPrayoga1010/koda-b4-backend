@@ -7,13 +7,14 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func OrderRoutes(r *gin.Engine, pg *pgxpool.Pool) {
-	oc := controllers.OrderController{DB: pg}
+func TransactionRoutes(r *gin.Engine, pg *pgxpool.Pool) {
+	tc := controllers.TransactionController{DB: pg}
 
 	admin := r.Group("/admin")
 	{
-		admin.GET("/orders", oc.GetOrders)
-		admin.PATCH("/orders/:id/status", oc.UpdateOrderStatus)
-		admin.DELETE("/orders/:id", oc.DeleteOrder)
+		admin.GET("/transactions", tc.GetTransactions)
+		admin.GET("/transactions/:id", tc.GetTransactionByID)
+		admin.PATCH("/transactions/:id/status", tc.UpdateTransactionStatus)
+		admin.DELETE("/transactions/:id", tc.DeleteTransaction)
 	}
 }
