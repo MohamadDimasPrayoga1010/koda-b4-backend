@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"main/libs"
 	"main/models"
+	"net/http"
 	"strconv"
 	"strings"
 
@@ -16,37 +17,72 @@ type UserController struct {
 	DB *pgxpool.Pool
 }
 
+// GetUsersList godoc
+// @Summary Get list of users
+// @Description Mengambil daftar users dengan pagination, optional search, dan sort
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Limit per page" default(10)
+// @Param search query string false "Search by fullname or email"
+// @Param sort_by query string false "Sort by field (fullname, email, created_at)" default(created_at)
+// @Param sort_order query string false "Sort order (asc or desc)" default(desc)
+// @Success 200 {object} models.Response
+// @Failure 500 {object} models.Response
+// @Router /admin/users [get]
 func (uc *UserController) GetUsersList(ctx *gin.Context) {
 	pageStr := ctx.DefaultQuery("page", "1")
 	limitStr := ctx.DefaultQuery("limit", "10")
 	search := ctx.DefaultQuery("search", "")
+	sortBy := ctx.DefaultQuery("sort_by", "created_at")
+	sortOrder := strings.ToLower(ctx.DefaultQuery("sort_order", "desc"))
 
 	page, _ := strconv.Atoi(pageStr)
 	limit, _ := strconv.Atoi(limitStr)
 	offset := (page - 1) * limit
 
-	query := `
-		SELECT u.id, u.fullname, u.email, u.role,
-		       p.image, p.phone, p.address,
-		       u.created_at, u.updated_at
+	
+	allowedSortBy := map[string]bool{
+		"fullname":   true,
+		"email":      true,
+		"created_at": true,
+	}
+	if !allowedSortBy[sortBy] {
+		sortBy = "created_at"
+	}
+
+	if sortOrder != "asc" && sortOrder != "desc" {
+		sortOrder = "desc"
+	}
+
+
+	baseQuery := `
+		SELECT 
+			u.id, u.fullname, u.email, u.role,
+			p.image, p.phone, p.address,
+			u.created_at, u.updated_at
 		FROM users u
 		LEFT JOIN profile p ON p.user_id = u.id
 		WHERE 1=1
 	`
 
 	var args []interface{}
+	argIndex := 1
+
 	if search != "" {
-		query += " AND (LOWER(u.fullname) LIKE LOWER($1) OR LOWER(u.email) LIKE LOWER($1))"
+		baseQuery += " AND (LOWER(u.fullname) LIKE LOWER($" + strconv.Itoa(argIndex) + ") OR LOWER(u.email) LIKE LOWER($" + strconv.Itoa(argIndex) + "))"
 		args = append(args, "%"+search+"%")
+		argIndex++
 	}
 
-	if len(args) > 0 {
-		query += fmt.Sprintf(" ORDER BY u.id DESC LIMIT $%d OFFSET $%d", len(args)+1, len(args)+2)
-		args = append(args, limit, offset)
-	} else {
-		query += " ORDER BY u.id DESC LIMIT $1 OFFSET $2"
-		args = append(args, limit, offset)
-	}
+	
+	orderClause := " ORDER BY u." + sortBy + " " + sortOrder
+
+	limitClause := " LIMIT $" + strconv.Itoa(argIndex) + " OFFSET $" + strconv.Itoa(argIndex+1)
+	args = append(args, limit, offset)
+
+	query := baseQuery + orderClause + limitClause
 
 	rows, err := uc.DB.Query(context.Background(), query, args...)
 	if err != nil {
@@ -69,8 +105,7 @@ func (uc *UserController) GetUsersList(ctx *gin.Context) {
 			&u.CreatedAt, &u.UpdatedAt,
 		)
 		if err != nil {
-			fmt.Println("Scan error:", err)
-			continue
+			continue 
 		}
 		u.Profile = &p
 		users = append(users, u)
@@ -79,36 +114,158 @@ func (uc *UserController) GetUsersList(ctx *gin.Context) {
 	ctx.JSON(200, models.Response{
 		Success: true,
 		Message: "Users fetched successfully",
-		Data:    users,
+		Data: gin.H{
+			"page":       page,
+			"limit":      limit,
+			"sort_by":    sortBy,
+			"sort_order": sortOrder,
+			"users":      users,
+		},
 	})
 }
 
+
+// GetUserByID godoc
+// @Summary Get user by ID
+// @Description Mengambil detail user beserta profile berdasarkan ID (Admin Only)
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
+// @Router /admin/users/{id} [get]
+func (uc *UserController) GetUserByID(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	query := `
+		SELECT 
+			u.id, u.fullname, u.email, u.role,
+			p.image, p.phone, p.address,
+			u.created_at, u.updated_at
+		FROM users u
+		LEFT JOIN profile p ON p.user_id = u.id
+		WHERE u.id=$1
+	`
+
+	var u models.UserList
+	var p models.Profile
+	err := uc.DB.QueryRow(context.Background(), query, id).Scan(
+		&u.ID, &u.Fullname, &u.Email, &u.Role,
+		&p.Image, &p.Phone, &p.Address,
+		&u.CreatedAt, &u.UpdatedAt,
+	)
+	if err != nil {
+		ctx.JSON(404, models.Response{
+			Success: false,
+			Message: "User not found",
+			Data:    nil,
+		})
+		return
+	}
+
+	u.Profile = &p
+
+	ctx.JSON(200, models.Response{
+		Success: true,
+		Message: "User fetched successfully",
+		Data:    u,
+	})
+}
+
+
+
+// AddUser godoc
+// @Summary Create a new user
+// @Description Menambahkan user baru beserta profile dengan upload gambar
+// @Tags Users
+// @Accept multipart/form-data
+// @Produce json
+// @Param fullname formData string true "Full Name"
+// @Param email formData string true "Email"
+// @Param password formData string true "Password"
+// @Param role formData string true "User Role (admin/user)"
+// @Param phone formData string false "Phone number"
+// @Param address formData string false "Address"
+// @Param image formData file false "Profile Image (max 2MB, jpg/png only)"
+// @Success 201 {object} models.Response
+// @Failure 400 {object} models.Response
+// @Failure 409 {object} models.Response
+// @Failure 500 {object} models.Response
+// @Router /admin/users [post]
 func (auc *UserController) AddUser(ctx *gin.Context) {
-	var req models.AdminUserRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
+	fullname := ctx.PostForm("fullname")
+	email := ctx.PostForm("email")
+	password := ctx.PostForm("password")
+	role := ctx.PostForm("role")
+	phone := ctx.PostForm("phone")
+	address := ctx.PostForm("address")
+
+	if fullname == "" || email == "" || password == "" || role == "" {
 		ctx.JSON(400, models.Response{
 			Success: false,
-			Message: "Invalid request body",
-			Data:    nil,
+			Message: "fullname, email, password, dan role wajib diisi",
 		})
 		return
 	}
 
-	if req.Password == "" {
+	if len(password) < 6 {
 		ctx.JSON(400, models.Response{
 			Success: false,
-			Message: "Password is required",
-			Data:    nil,
+			Message: "Password minimal 6 karakter",
 		})
 		return
 	}
 
-	hashed, err := libs.HashPassword(req.Password)
+	var imagePath string
+	file, err := ctx.FormFile("image")
+	if err == nil {
+		const maxSize = 2 << 20 
+		if file.Size > maxSize {
+			ctx.JSON(400, models.Response{
+				Success: false,
+				Message: "Ukuran file melebihi 2MB",
+			})
+			return
+		}
+
+		allowedTypes := map[string]bool{
+			"image/jpeg": true,
+			"image/png":  true,
+		}
+
+		opened, _ := file.Open()
+		defer opened.Close()
+
+		buffer := make([]byte, 512)
+		opened.Read(buffer)
+		contentType := http.DetectContentType(buffer)
+		if !allowedTypes[contentType] {
+			ctx.JSON(400, models.Response{
+				Success: false,
+				Message: "Format gambar tidak didukung (hanya JPG dan PNG)",
+			})
+			return
+		}
+
+		savePath := "uploads/" + file.Filename
+		if err := ctx.SaveUploadedFile(file, savePath); err != nil {
+			ctx.JSON(500, models.Response{
+				Success: false,
+				Message: "Gagal menyimpan file gambar",
+				Data:    err.Error(),
+			})
+			return
+		}
+		imagePath = savePath
+	}
+
+	hashed, err := libs.HashPassword(password)
 	if err != nil {
 		ctx.JSON(500, models.Response{
 			Success: false,
-			Message: "Failed to hash password",
-			Data:    nil,
+			Message: "Gagal meng-hash password",
 		})
 		return
 	}
@@ -119,109 +276,244 @@ func (auc *UserController) AddUser(ctx *gin.Context) {
 		RETURNING id, fullname, email, role
 	`
 	var userID int64
-	var fullname, email, role string
-	err = auc.DB.QueryRow(context.Background(), query, req.Fullname, req.Email, hashed, req.Role).
-		Scan(&userID, &fullname, &email, &role)
+	var name, userEmail, userRole string
+	err = auc.DB.QueryRow(context.Background(), query, fullname, email, hashed, role).
+		Scan(&userID, &name, &userEmail, &userRole)
 	if err != nil {
 		if strings.Contains(err.Error(), "duplicate key") {
 			ctx.JSON(409, models.Response{
 				Success: false,
-				Message: "Email already exists",
-				Data:    nil,
+				Message: "Email sudah digunakan",
 			})
 			return
 		}
 		ctx.JSON(500, models.Response{
 			Success: false,
-			Message: "Failed to create user",
+			Message: "Gagal membuat user",
 			Data:    err.Error(),
 		})
 		return
 	}
-
 
 	profileQuery := `
 		INSERT INTO profile (user_id, image, phone, address)
 		VALUES ($1, $2, $3, $4)
 	`
-	_, err = auc.DB.Exec(context.Background(), profileQuery, userID, req.Image, req.Phone, req.Address)
-	if err != nil {
-		fmt.Println("Failed to insert profile:", err)
-	}
-
-	ctx.JSON(201, models.Response{
-		Success: true,
-		Message: "User created successfully",
-		Data: map[string]interface{}{
-			"id":       userID,
-			"fullname": fullname,
-			"email":    email,
-			"role":     role,
-		},
-	})
-}
-
-
-func (auc *UserController) EditUser(ctx *gin.Context) {
-	id := ctx.Param("id")
-	var req models.AdminUserRequest
-	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(400, models.Response{
-			Success: false,
-			Message: "Invalid request body",
-			Data:    nil,
-		})
-		return
-	}
-
-	passwordQuery := ""
-	var hashed string
-	if req.Password != "" {
-		h, err := libs.HashPassword(req.Password)
-		if err != nil {
-			ctx.JSON(500, models.Response{
-				Success: false,
-				Message: "Failed to hash password",
-				Data:    nil,
-			})
-			return
-		}
-		hashed = h
-		passwordQuery = ", password = '" + hashed + "'"
-	}
-
-	query := fmt.Sprintf(`
-		UPDATE users 
-		SET fullname=$1, email=$2, role=$3%s, updated_at=now()
-		WHERE id=$4
-	`, passwordQuery)
-
-	_, err := auc.DB.Exec(context.Background(), query, req.Fullname, req.Email, req.Role, id)
+	_, err = auc.DB.Exec(context.Background(), profileQuery, userID, imagePath, phone, address)
 	if err != nil {
 		ctx.JSON(500, models.Response{
 			Success: false,
-			Message: "Failed to update user",
+			Message: "Gagal membuat profile user",
 			Data:    err.Error(),
 		})
 		return
 	}
 
-	profileQuery := `
-		UPDATE profile
-		SET image=$1, phone=$2, address=$3, updated_at=now()
-		WHERE user_id=$4
-	`
-	_, err = auc.DB.Exec(context.Background(), profileQuery, req.Image, req.Phone, req.Address, id)
-	if err != nil {
-		fmt.Println("Failed to update profile:", err)
+	ctx.JSON(201, models.Response{
+		Success: true,
+		Message: "User berhasil dibuat",
+		Data: map[string]interface{}{
+			"id":       userID,
+			"fullname": name,
+			"email":    userEmail,
+			"role":     userRole,
+			"image":    imagePath,
+		},
+	})
+}
+
+
+
+// EditUser godoc
+// @Summary Update user data
+// @Description Mengupdate data user dan profil berdasarkan ID (support upload image)
+// @Tags Users
+// @Accept multipart/form-data
+// @Produce json
+// @Param id path int true "User ID"
+// @Param fullname formData string false "Full Name"
+// @Param email formData string false "Email"
+// @Param password formData string false "Password (optional)"
+// @Param phone formData string false "Phone number"
+// @Param address formData string false "Address"
+// @Param image formData file false "Profile image (max 2MB, jpg/png only)"
+// @Success 200 {object} models.Response
+// @Failure 400 {object} models.Response
+// @Failure 404 {object} models.Response
+// @Failure 500 {object} models.Response
+// @Router /admin/users/{id} [patch]
+func (auc *UserController) EditUser(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+	fullname := ctx.PostForm("fullname")
+	email := ctx.PostForm("email")
+	password := ctx.PostForm("password")
+	phone := ctx.PostForm("phone")
+	address := ctx.PostForm("address")
+
+	if fullname == "" && email == "" && phone == "" && address == "" && password == "" {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Tidak ada data yang diubah",
+		})
+		return
+	}
+
+	if password != "" && len(password) < 6 {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Password minimal 6 karakter",
+		})
+		return
+	}
+
+	var imagePath string
+	file, err := ctx.FormFile("image")
+	if err == nil {
+		const maxSize = 2 << 20 
+		if file.Size > maxSize {
+			ctx.JSON(400, models.Response{
+				Success: false,
+				Message: "Ukuran file melebihi 2MB",
+			})
+			return
+		}
+
+		allowedTypes := map[string]bool{
+			"image/jpeg": true,
+			"image/png":  true,
+		}
+
+		opened, _ := file.Open()
+		defer opened.Close()
+
+		buffer := make([]byte, 512)
+		_, _ = opened.Read(buffer)
+		contentType := http.DetectContentType(buffer)
+		if !allowedTypes[contentType] {
+			ctx.JSON(400, models.Response{
+				Success: false,
+				Message: "Format gambar tidak didukung (hanya JPG dan PNG)",
+			})
+			return
+		}
+
+		savePath := "uploads/" + file.Filename
+		if err := ctx.SaveUploadedFile(file, savePath); err != nil {
+			ctx.JSON(500, models.Response{
+				Success: false,
+				Message: "Gagal menyimpan file gambar",
+				Data:    err.Error(),
+			})
+			return
+		}
+		imagePath = savePath
+	}
+
+	updateFields := []string{}
+	args := []interface{}{}
+	argIdx := 1
+
+	if fullname != "" {
+		updateFields = append(updateFields, fmt.Sprintf("fullname=$%d", argIdx))
+		args = append(args, fullname)
+		argIdx++
+	}
+	if email != "" {
+		updateFields = append(updateFields, fmt.Sprintf("email=$%d", argIdx))
+		args = append(args, email)
+		argIdx++
+	}
+	if password != "" {
+		hashed, err := libs.HashPassword(password)
+		if err != nil {
+			ctx.JSON(500, models.Response{
+				Success: false,
+				Message: "Gagal meng-hash password",
+			})
+			return
+		}
+		updateFields = append(updateFields, fmt.Sprintf("password=$%d", argIdx))
+		args = append(args, hashed)
+		argIdx++
+	}
+
+	if len(updateFields) > 0 {
+		query := fmt.Sprintf(`
+			UPDATE users 
+			SET %s, updated_at=now()
+			WHERE id=$%d
+		`, strings.Join(updateFields, ", "), argIdx)
+		args = append(args, id)
+
+		_, err := auc.DB.Exec(context.Background(), query, args...)
+		if err != nil {
+			ctx.JSON(500, models.Response{
+				Success: false,
+				Message: "Gagal mengupdate data user",
+				Data:    err.Error(),
+			})
+			return
+		}
+	}
+
+	profileFields := []string{}
+	profileArgs := []interface{}{}
+	pIdx := 1
+
+	if imagePath != "" {
+		profileFields = append(profileFields, fmt.Sprintf("image=$%d", pIdx))
+		profileArgs = append(profileArgs, imagePath)
+		pIdx++
+	}
+	if phone != "" {
+		profileFields = append(profileFields, fmt.Sprintf("phone=$%d", pIdx))
+		profileArgs = append(profileArgs, phone)
+		pIdx++
+	}
+	if address != "" {
+		profileFields = append(profileFields, fmt.Sprintf("address=$%d", pIdx))
+		profileArgs = append(profileArgs, address)
+		pIdx++
+	}
+
+	if len(profileFields) > 0 {
+		query := fmt.Sprintf(`
+			UPDATE profile 
+			SET %s, updated_at=now()
+			WHERE user_id=$%d
+		`, strings.Join(profileFields, ", "), pIdx)
+		profileArgs = append(profileArgs, id)
+
+		_, err := auc.DB.Exec(context.Background(), query, profileArgs...)
+		if err != nil {
+			ctx.JSON(500, models.Response{
+				Success: false,
+				Message: "Gagal mengupdate profil user",
+				Data:    err.Error(),
+			})
+			return
+		}
 	}
 
 	ctx.JSON(200, models.Response{
 		Success: true,
-		Message: "User updated successfully",
+		Message: "Data user berhasil diperbarui",
 	})
 }
 
+
+
+// DeleteUser godoc
+// @Summary Delete a user
+// @Description Menghapus user beserta profile berdasarkan ID
+// @Tags Users
+// @Accept json
+// @Produce json
+// @Param id path int true "User ID"
+// @Success 200 {object} models.Response
+// @Failure 500 {object} models.Response
+// @Router /admin/users/{id} [delete]
 func (uc *UserController) DeleteUser(ctx *gin.Context) {
 	id := ctx.Param("id")
 
