@@ -222,4 +222,36 @@ func (auc *UserController) EditUser(ctx *gin.Context) {
 	})
 }
 
+func (uc *UserController) DeleteUser(ctx *gin.Context) {
+	id := ctx.Param("id")
+
+
+	_, err := uc.DB.Exec(context.Background(), `DELETE FROM profile WHERE user_id=$1`, id)
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to delete user profile",
+			Data:    err.Error(),
+		})
+		return
+	}
+
+	_, err = uc.DB.Exec(context.Background(), `DELETE FROM users WHERE id=$1`, id)
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to delete user",
+			Data:    err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(200, models.Response{
+		Success: true,
+		Message: "User deleted successfully",
+		Data:    nil,
+	})
+}
+
+
 
