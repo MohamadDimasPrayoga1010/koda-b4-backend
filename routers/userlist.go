@@ -12,9 +12,10 @@ func AdminUserRoutes(r *gin.Engine, pg *pgxpool.Pool) {
 
 	admin := r.Group("/admin")
 	{
-		admin.GET("/userslist", uc.GetUsersList)      
-		admin.POST("/userslist", uc.AddUser)          
-		admin.PATCH("/userslist/:id", uc.EditUser)  
-		admin.DELETE("/userslist/:id", uc.DeleteUser)    
+		admin.GET("/users", uc.GetUsersList)
+		admin.GET("/users/:id", uc.GetUserByID)
+		admin.POST("/users", uc.AddUser)
+		admin.PATCH("/users/:id", uc.EditUser)
+		admin.DELETE("/users/:id", uc.DeleteUser)
 	}
 }
