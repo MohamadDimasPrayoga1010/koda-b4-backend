@@ -261,19 +261,19 @@ func (pc *ProductController) GetProduct(ctx *gin.Context) {
 		SELECT id, title, description, base_price, stock, category_id, variant_id, created_at
 		FROM products
 	`
-	var args []interface{}
-	argIndex := 1
+	var pFilter []interface{}
+	pIndex := 1
 
 	if search != "" {
-		query += fmt.Sprintf(" WHERE LOWER(title) LIKE LOWER($%d) OR LOWER(description) LIKE LOWER($%d)", argIndex, argIndex)
-		args = append(args, "%"+search+"%")
-		argIndex++
+		query += fmt.Sprintf(" WHERE LOWER(title) LIKE LOWER($%d) OR LOWER(description) LIKE LOWER($%d)", pIndex, pIndex)
+		pFilter = append(pFilter, "%"+search+"%")
+		pIndex++
 	}
 
-	query += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortBy, order, argIndex, argIndex+1)
-	args = append(args, limit, offset)
+	query += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortBy, order, pIndex, pIndex+1)
+	pFilter = append(pFilter, limit, offset)
 
-	rows, err := pc.DB.Query(context.Background(), query, args...)
+	rows, err := pc.DB.Query(context.Background(), query, pFilter...)
 	if err != nil {
 		ctx.JSON(500, models.Response{
 			Success: false,
@@ -844,7 +844,6 @@ func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
 	})
 }
 
-
 // GetFavoriteProducts godoc
 // @Summary Get favorite products
 // @Description Menampilkan daftar produk favorit (bisa diatur limit-nya lewat query param ?limit=5)
@@ -913,3 +912,161 @@ func (pc *ProductController) GetFavoriteProducts(ctx *gin.Context) {
 		"data":    favorites,
 	})
 }
+
+
+// FilterProducts godoc
+// @Summary      Filter dan ambil daftar produk
+// @Description  Endpoint ini mengambil daftar produk berdasarkan kategori, favorit, rentang harga, dan urutan (sort by). Semua parameter opsional.
+// @Tags         Products
+// @Accept       json
+// @Produce      json
+// @Param        cat         query []int  false  "ID kategori, bisa lebih dari satu" collectionFormat(multi)  example(1,3)
+// @Param        favorite    query bool   false  "Filter produk favorit"  example(true)
+// @Param        price_min   query number false  "Batas harga minimum"  example(10000)
+// @Param        price_max   query number false  "Batas harga maksimum"  example(50000)
+// @Param        sortby      query string false "Urutkan hasil: name=A-Z, baseprice=termurah ke termahal"  Enums(name, baseprice)  example(baseprice)
+// @Success      200  {object} map[string]interface{} "Data produk berhasil difilter"
+// @Failure      500  {object} map[string]interface{} "Terjadi kesalahan server"
+// @Router       /products [get]
+func (pc *ProductController) FilterProducts(ctx *gin.Context) {
+	var filter models.ProductFilter
+
+	if cats := ctx.QueryArray("cat"); len(cats) > 0 {
+		for _, c := range cats {
+			if id, err := strconv.ParseInt(c, 10, 64); err == nil {
+				filter.Categories = append(filter.Categories, id)
+			}
+		}
+	}
+
+	if fav := ctx.Query("favorite"); fav != "" {
+		b := fav == "true"
+		filter.IsFavorite = &b
+	}
+
+	if pmin := ctx.Query("price_min"); pmin != "" {
+		if f, err := strconv.ParseFloat(pmin, 64); err == nil {
+			filter.PriceMin = &f
+		}
+	}
+
+	if pmax := ctx.Query("price_max"); pmax != "" {
+		if f, err := strconv.ParseFloat(pmax, 64); err == nil {
+			filter.PriceMax = &f
+		}
+	}
+
+	filter.SortBy = ctx.DefaultQuery("sortby", "name") 
+
+	query := `
+		SELECT 
+			p.id, 
+			p.title, 
+			p.description, 
+			p.base_price,
+			COALESCE(pi.image, '') AS image,
+			COALESCE(v.name, '') AS variant_name,
+			COALESCE(json_agg(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL), '[]') AS sizes
+		FROM products p
+		LEFT JOIN product_images pi ON pi.product_id = p.id
+		LEFT JOIN product_sizes ps ON ps.product_id = p.id
+		LEFT JOIN sizes s ON s.id = ps.size_id
+		LEFT JOIN variants v ON v.id = p.variant_id
+		WHERE 1=1
+	`
+
+	var pFilter []interface{}
+	filterIndex := 1
+
+	if len(filter.Categories) > 0 {
+		query += fmt.Sprintf(" AND p.category_id = ANY($%d)", filterIndex)
+		pFilter = append(pFilter, filter.Categories)
+		filterIndex++
+	}
+
+	if filter.IsFavorite != nil {
+		query += fmt.Sprintf(" AND p.is_favorite = $%d", filterIndex)
+		pFilter = append(pFilter, *filter.IsFavorite)
+		filterIndex++
+	}
+
+	if filter.PriceMin != nil {
+		query += fmt.Sprintf(" AND p.base_price >= $%d", filterIndex)
+		pFilter = append(pFilter, *filter.PriceMin)
+		filterIndex++
+	}
+
+	if filter.PriceMax != nil {
+		query += fmt.Sprintf(" AND p.base_price <= $%d", filterIndex)
+		pFilter = append(pFilter, *filter.PriceMax)
+		filterIndex++
+	}
+
+	query += " GROUP BY p.id, pi.image, v.name"
+
+	switch filter.SortBy {
+	case "name":
+		query += " ORDER BY p.title ASC"
+	case "baseprice":
+		query += " ORDER BY p.base_price ASC"
+	default:
+		query += " ORDER BY p.title ASC"
+	}
+
+	rows, err := pc.DB.Query(context.Background(), query, pFilter...)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Gagal menjalankan query filter produk",
+			"error":   err.Error(),
+		})
+		return
+	}
+	defer rows.Close()
+
+	var products []map[string]interface{}
+	for rows.Next() {
+		var (
+			id          int64
+			title       string
+			desc        string
+			price       float64
+			image       string
+			variantName string
+			sizesRaw    []byte
+		)
+
+		if err := rows.Scan(&id, &title, &desc, &price, &image, &variantName, &sizesRaw); err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Gagal membaca data produk",
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		var sizes []string
+		json.Unmarshal(sizesRaw, &sizes)
+
+		products = append(products, map[string]interface{}{
+			"id":          id,
+			"title":       title,
+			"description": desc,
+			"base_price":  price,
+			"image":       image,
+			"variant":     variantName, 
+			"sizes":       sizes,       
+		})
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Data produk berhasil difilter",
+		"data":    products,
+	})
+}
+
+
+
+
+
