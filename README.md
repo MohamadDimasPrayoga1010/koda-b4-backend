@@ -23,4 +23,12 @@ GET	/admin/orders	List orders
 PATCH	/admin/orders/:id/status	Update status order
 DELETE	/admin/orders/:id	Hapus order
 
+### Preview waktu sebelum caching
+Waktu 33 ms
 
+![img](images/sebelumCaching.png)
+
+### Preview waktu sesudah caching
+Waktu 6 ms
+
+![img](images/sesudah.png)
