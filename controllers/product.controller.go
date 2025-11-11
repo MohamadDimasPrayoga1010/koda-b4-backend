@@ -1067,6 +1067,167 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 }
 
 
+func (pc *ProductController) GetProductDetail(ctx *gin.Context) {
+
+	idParam := ctx.Param("id")
+	productID, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid product ID",
+		})
+		return
+	}
+
+
+	var product models.ProductDetail
+	var variantID *int64
+	var categoryID int64
+
+	query := `
+		SELECT id, title, description, base_price, stock, category_id, variant_id
+		FROM products
+		WHERE id=$1
+	`
+	err = pc.DB.QueryRow(context.Background(), query, productID).Scan(
+		&product.ID, &product.Title, &product.Description,
+		&product.BasePrice, &product.Stock, &categoryID, &variantID,
+	)
+	if err != nil {
+		ctx.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "Product not found",
+		})
+		return
+	}
+	product.CategoryID = categoryID
+
+
+	if variantID != nil {
+		var v models.Variant
+		if err := pc.DB.QueryRow(context.Background(), `SELECT id, name FROM variants WHERE id=$1`, *variantID).
+			Scan(&v.ID, &v.Name); err == nil {
+			product.Variant = &v
+		}
+	}
+
+	product.Images = []models.ProductImage{}
+	rowsImg, err := pc.DB.Query(context.Background(),
+		`SELECT image, updated_at FROM product_images WHERE product_id=$1 ORDER BY updated_at ASC`,
+		product.ID,
+	)
+	if err == nil {
+		for rowsImg.Next() {
+			var img models.ProductImage
+			if err := rowsImg.Scan(&img.Image, &img.UpdatedAt); err == nil {
+				img.ProductID = product.ID
+				product.Images = append(product.Images, img)
+			}
+		}
+		rowsImg.Close()
+	}
+	product.Sizes = []models.Size{}
+	if product.Variant == nil || product.Variant.Name != "Food" {
+		rowsSize, err := pc.DB.Query(context.Background(),
+			`SELECT s.id, s.name, s.additional_price 
+			 FROM product_sizes ps
+			 JOIN sizes s ON ps.size_id = s.id
+			 WHERE ps.product_id=$1`,
+			product.ID,
+		)
+		if err == nil {
+			for rowsSize.Next() {
+				var s models.Size
+				if err := rowsSize.Scan(&s.ID, &s.Name, &s.AdditionalPrice); err == nil {
+					product.Sizes = append(product.Sizes, s)
+				}
+			}
+			rowsSize.Close()
+		}
+	}
+
+	product.Recommended = []models.RecommendedProductInfo{}
+	var recQuery string
+	var recArgs []interface{}
+	if variantID != nil {
+		recQuery = `
+			SELECT p.id, p.title, p.description, p.base_price, p.stock, p.category_id, p.variant_id
+			FROM recommended_products rp
+			JOIN products p ON rp.recommended_id = p.id
+			WHERE rp.product_id=$1 AND p.variant_id=$2
+		`
+		recArgs = append(recArgs, product.ID, *variantID)
+	} else {
+		recQuery = `
+			SELECT p.id, p.title, p.description, p.base_price, p.stock, p.category_id, p.variant_id
+			FROM recommended_products rp
+			JOIN products p ON rp.recommended_id = p.id
+			WHERE rp.product_id=$1
+		`
+		recArgs = append(recArgs, product.ID)
+	}
+
+	rowsRec, err := pc.DB.Query(context.Background(), recQuery, recArgs...)
+	if err == nil {
+		for rowsRec.Next() {
+			var rec models.RecommendedProductInfo
+			var recVariantID *int64
+			if err := rowsRec.Scan(&rec.ID, &rec.Title, &rec.Description, &rec.BasePrice, &rec.Stock, &rec.CategoryID, &recVariantID); err != nil {
+				continue
+			}
+
+			if recVariantID != nil {
+				var v models.Variant
+				if err := pc.DB.QueryRow(context.Background(), `SELECT id, name FROM variants WHERE id=$1`, *recVariantID).Scan(&v.ID, &v.Name); err == nil {
+					rec.Variant = &v
+				}
+			}
+
+			rec.Images = []models.ProductImage{}
+			imgRows, err := pc.DB.Query(context.Background(),
+				`SELECT image, updated_at FROM product_images WHERE product_id=$1 ORDER BY updated_at ASC`,
+				rec.ID,
+			)
+			if err == nil {
+				for imgRows.Next() {
+					var img models.ProductImage
+					if err := imgRows.Scan(&img.Image, &img.UpdatedAt); err == nil {
+						img.ProductID = rec.ID
+						rec.Images = append(rec.Images, img)
+					}
+				}
+				imgRows.Close()
+			}
+
+			rec.Sizes = []models.Size{}
+			if rec.Variant == nil || rec.Variant.Name != "Food" {
+				sizeRows, err := pc.DB.Query(context.Background(),
+					`SELECT s.id, s.name, s.additional_price FROM product_sizes ps JOIN sizes s ON ps.size_id=s.id WHERE ps.product_id=$1`,
+					rec.ID,
+				)
+				if err == nil {
+					for sizeRows.Next() {
+						var s models.Size
+						if err := sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice); err == nil {
+							rec.Sizes = append(rec.Sizes, s)
+						}
+					}
+					sizeRows.Close()
+				}
+			}
+
+			product.Recommended = append(product.Recommended, rec)
+		}
+		rowsRec.Close()
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Product detail fetched successfully",
+		"data":    product,
+	})
+}
+
 
 
 
