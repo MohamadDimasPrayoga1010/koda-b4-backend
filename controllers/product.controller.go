@@ -175,6 +175,21 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 		product.Sizes = append(product.Sizes, size)
 	}
 
+	redis := libs.RedisClient.Scan(libs.Ctx, 0, "products:*", 0).Iterator()
+	for redis.Next(libs.Ctx) {
+		key := redis.Val()
+		libs.RedisClient.Del(libs.Ctx, key)
+	}
+
+	if err := redis.Err(); err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to clear Redis cache",
+			Data:    err.Error(),
+		})
+		return
+	}
+
 	ctx.JSON(201, models.Response{
 		Success: true,
 		Message: "Product created successfully",
