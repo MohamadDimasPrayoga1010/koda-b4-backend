@@ -843,3 +843,73 @@ func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
 		},
 	})
 }
+
+
+// GetFavoriteProducts godoc
+// @Summary Get favorite products
+// @Description Menampilkan daftar produk favorit (bisa diatur limit-nya lewat query param ?limit=5)
+// @Tags Products
+// @Accept json
+// @Produce json
+// @Param limit query int false "Limit produk favorit yang ditampilkan" default(10)
+// @Success 200 {object} models.Response
+// @Failure 500 {object} models.Response
+// @Router /favorite-product [get]
+func (pc *ProductController) GetFavoriteProducts(ctx *gin.Context) {
+	limitParam := ctx.DefaultQuery("limit", "10")
+	limit, err := strconv.Atoi(limitParam)
+	if err != nil || limit <= 0 {
+		limit = 10
+	}
+
+	query := `
+		SELECT p.id, p.title, p.description, p.base_price, pi.image
+		FROM products p
+		LEFT JOIN product_images pi ON pi.product_id = p.id
+		WHERE p.is_favorite = true
+		GROUP BY p.id, pi.image
+		ORDER BY p.updated_at DESC
+		LIMIT $1
+	`
+
+	rows, err := pc.DB.Query(context.Background(), query, limit)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Gagal mengambil produk favorit",
+			"error":   err.Error(),
+		})
+		return
+	}
+	defer rows.Close()
+
+	var favorites []map[string]interface{}
+	for rows.Next() {
+		var id int64
+		var title, desc, image string
+		var price float64
+
+		if err := rows.Scan(&id, &title, &desc, &price, &image); err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{
+				"success": false,
+				"message": "Gagal membaca data produk",
+				"error":   err.Error(),
+			})
+			return
+		}
+
+		favorites = append(favorites, map[string]interface{}{
+			"id":          id,
+			"title":       title,
+			"description": desc,
+			"base_price":  price,
+			"image":       image,
+		})
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Data produk favorit berhasil diambil",
+		"data":    favorites,
+	})
+}
