@@ -2,8 +2,11 @@ package controllers
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"main/libs"
 	"main/models"
+	"net/http"
 	"strings"
 
 	"os"
@@ -200,6 +203,10 @@ func (pc *ProductController) GetProduct(ctx *gin.Context) {
 	sortBy := ctx.DefaultQuery("sort_by", "created_at")
 	order := strings.ToUpper(ctx.DefaultQuery("order", "DESC"))
 
+	limit, _ := strconv.Atoi(limitStr)
+	page, _ := strconv.Atoi(pageStr)
+	offset := (page - 1) * limit
+
 	allowedSortFields := map[string]bool{
 		"id":         true,
 		"title":      true,
@@ -213,9 +220,27 @@ func (pc *ProductController) GetProduct(ctx *gin.Context) {
 		order = "DESC"
 	}
 
-	limit, _ := strconv.Atoi(limitStr)
-	page, _ := strconv.Atoi(pageStr)
-	offset := (page - 1) * limit
+	cacheKey := fmt.Sprintf("products:page:%d:",
+		page)
+
+	cache, err := libs.RedisClient.Get(libs.Ctx, cacheKey).Result()
+	if err == nil {
+		var cachedData []models.ProductResponse
+		json.Unmarshal([]byte(cache), &cachedData)
+
+		ctx.JSON(http.StatusOK, models.Response{
+			Success: true,
+			Message: "Product fetch from cache",
+			Data: gin.H{
+				"page": page,
+				// "limit":    limit,
+				// "sort_by":  sortBy,
+				// "order":    order,
+				"products": cachedData,
+			},
+		})
+		return
+	}
 
 	query := `
 		SELECT id, title, description, base_price, stock, category_id, variant_id, created_at
@@ -253,11 +278,18 @@ func (pc *ProductController) GetProduct(ctx *gin.Context) {
 			&p.BasePrice, &p.Stock, &p.CategoryID, &p.VariantID, &p.CreatedAt,
 		)
 		if err != nil {
-			continue
+			ctx.JSON(404, models.Response{
+				Success: false,
+				Message: "Product not found",
+				Data:    nil,
+			})
+			return
 		}
 
 		imgRows, _ := pc.DB.Query(context.Background(),
-			`SELECT image, updated_at, deleted_at FROM product_images WHERE product_id=$1 AND deleted_at IS NULL`, p.ID)
+			`SELECT image, updated_at, deleted_at 
+			 FROM product_images 
+			 WHERE product_id = $1 AND deleted_at IS NULL`, p.ID)
 		for imgRows.Next() {
 			var img models.ProductImage
 			img.ProductID = p.ID
@@ -280,6 +312,30 @@ func (pc *ProductController) GetProduct(ctx *gin.Context) {
 		sizeRows.Close()
 
 		products = append(products, p)
+	}
+
+	if len(products) == 0 {
+		ctx.JSON(200, models.Response{
+			Success: true,
+			Message: "No products found",
+			Data: gin.H{
+				"products": []models.ProductResponse{},
+				"page":     page,
+				"limit":    limit,
+			},
+		})
+		return
+	}
+
+	jsonData, _ := json.Marshal(products)
+	err = libs.RedisClient.Set(libs.Ctx, cacheKey, jsonData, 10*time.Minute).Err()
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, models.Response{
+			Success: false,
+			Message: "Gagal menyimpan cache Redis",
+			Data:    err.Error(),
+		})
+		return
 	}
 
 	ctx.JSON(200, models.Response{
@@ -406,7 +462,6 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 		return
 	}
 
-
 	query := `
 		UPDATE products
 		SET title = $1, description = $2, base_price = $3, stock = $4,
@@ -435,7 +490,6 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 
 	uploadDir := "./uploads/products"
 	os.MkdirAll(uploadDir, os.ModePerm)
-
 
 	pc.DB.Exec(context.Background(), `DELETE FROM product_images WHERE product_id = $1`, product.ID)
 
@@ -474,7 +528,6 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 		Data:    product,
 	})
 }
-
 
 // DeleteProduct godoc
 // @Summary Delete a product
@@ -628,7 +681,6 @@ func (pc *ProductController) GetProductImageByID(ctx *gin.Context) {
 	})
 }
 
-
 // DeleteProductImage godoc
 // @Summary Delete a product image
 // @Description Menghapus gambar product berdasarkan product ID dan image ID
@@ -776,4 +828,3 @@ func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
 		},
 	})
 }
-
