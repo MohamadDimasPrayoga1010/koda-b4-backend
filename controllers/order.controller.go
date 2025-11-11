@@ -49,13 +49,13 @@ func (tc *TransactionController) GetTransactions(ctx *gin.Context) {
 			pm.name AS payment_method, sh.name AS shipping_name,
 			COALESCE(SUM(pr.base_price * op.qty), 0) AS total
 		FROM orders o
-		JOIN users u ON u.id = o.user_id
+		LEFT JOIN users u ON u.id = o.user_id
 		LEFT JOIN profile p ON p.user_id = u.id
-		JOIN status s ON s.id = o.status_id
-		JOIN payment_methods pm ON pm.id = o.payment_method
-		JOIN shippings sh ON sh.id = o.shipping_id
-		JOIN orders_products op ON op.order_id = o.id
-		JOIN products pr ON pr.id = op.product_id
+		LEFT JOIN status s ON s.id = o.status_id
+		LEFT JOIN payment_methods pm ON pm.id = o.payment_method
+		LEFT JOIN shippings sh ON sh.id = o.shipping_id
+		LEFT JOIN orders_products op ON op.order_id = o.id
+		LEFT JOIN products pr ON pr.id = op.product_id
 		WHERE 1=1
 	`
 
@@ -84,6 +84,7 @@ func (tc *TransactionController) GetTransactions(ctx *gin.Context) {
 	var transactions []models.Transaction
 	for rows.Next() {
 		var t models.Transaction
+		t.OrderItems = []models.TransactionItem{} 
 		if err := rows.Scan(
 			&t.ID, &t.NoOrders, &t.CreatedAt, &t.StatusName,
 			&t.UserFullname, &t.UserAddress, &t.UserPhone,
@@ -91,7 +92,7 @@ func (tc *TransactionController) GetTransactions(ctx *gin.Context) {
 		); err != nil {
 			continue
 		}
-		
+
 		itemRows, err := tc.DB.Query(context.Background(), `
 			SELECT pr.title, s.name AS size, op.qty
 			FROM orders_products op
@@ -126,7 +127,6 @@ func (tc *TransactionController) GetTransactions(ctx *gin.Context) {
 // @Produce json
 // @Param id path int true "Transaction ID"
 // @Success 200 {object} models.Response
-// @Failure 400 {object} models.Response
 // @Failure 404 {object} models.Response
 // @Failure 500 {object} models.Response
 // @Router /admin/transactions/{id} [get]
@@ -141,18 +141,19 @@ func (tc *TransactionController) GetTransactionByID(ctx *gin.Context) {
 			pm.name AS payment_method, sh.name AS shipping_name,
 			COALESCE(SUM(pr.base_price * op.qty), 0) AS total
 		FROM orders o
-		JOIN users u ON u.id = o.user_id
+		LEFT JOIN users u ON u.id = o.user_id
 		LEFT JOIN profile p ON p.user_id = u.id
-		JOIN status s ON s.id = o.status_id
-		JOIN payment_methods pm ON pm.id = o.payment_method
-		JOIN shippings sh ON sh.id = o.shipping_id
-		JOIN orders_products op ON op.order_id = o.id
-		JOIN products pr ON pr.id = op.product_id
+		LEFT JOIN status s ON s.id = o.status_id
+		LEFT JOIN payment_methods pm ON pm.id = o.payment_method
+		LEFT JOIN shippings sh ON sh.id = o.shipping_id
+		LEFT JOIN orders_products op ON op.order_id = o.id
+		LEFT JOIN products pr ON pr.id = op.product_id
 		WHERE o.id=$1
 		GROUP BY o.id, s.name, u.fullname, p.address, p.phone, pm.name, sh.name
 	`
 
 	var t models.Transaction
+	t.OrderItems = []models.TransactionItem{} 
 	err := tc.DB.QueryRow(context.Background(), query, id).Scan(
 		&t.ID, &t.NoOrders, &t.CreatedAt, &t.StatusName,
 		&t.UserFullname, &t.UserAddress, &t.UserPhone,
@@ -188,7 +189,6 @@ func (tc *TransactionController) GetTransactionByID(ctx *gin.Context) {
 		Data:    t,
 	})
 }
-
 
 // UpdateTransactionStatus godoc
 // @Summary Update transaction status
