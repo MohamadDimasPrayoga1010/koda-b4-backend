@@ -22,4 +22,5 @@ func ProductRoutes(r *gin.Engine, pg *pgxpool.Pool) {
 		admin.PATCH("/products/:id/images/:image_id", pc.UpdateProductImage) 
 		admin.DELETE("/products/:id/images/:image_id", pc.DeleteProductImage) 
 	}
+	r.GET("/favorite-product", pc.GetFavoriteProducts)
 }
