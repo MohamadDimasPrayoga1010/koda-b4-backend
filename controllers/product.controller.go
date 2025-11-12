@@ -1346,3 +1346,48 @@ func (pc *ProductController) GetCart(ctx *gin.Context) {
 	})
 }
 
+func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
+
+	userIDValue, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{
+			"status":  "error",
+			"message": "User not authenticated",
+		})
+		return
+	}
+	userID, ok := userIDValue.(int64)
+	if !ok {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Invalid user ID type",
+		})
+		return
+	}
+
+	var req models.OrderTransactionRequest
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"status":  "error",
+			"message": "Invalid request body",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	req.UserID = userID
+
+	order, err := models.CreateOrderTransaction(pc.DB, req)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusCreated, gin.H{
+		"status": "success",
+		"data":   order,
+	})
+}
