@@ -546,4 +546,74 @@ func (uc *UserController) DeleteUser(ctx *gin.Context) {
 }
 
 
+// UpdateProfile godoc
+// @Summary      Update user profile
+// @Description  Update phone, address, and profile image
+// @Tags         Profile
+// @Accept       multipart/form-data
+// @Produce      json
+// @Param        Authorization header string true "Bearer <JWT token>"
+// @Param        phone formData string false "Phone number"
+// @Param        address formData string false "Address"
+// @Param        image formData file false "Profile image (jpg, jpeg, png, max 2MB)"
+// @Success      200 {object} models.ProfileUser
+// @Failure      400 {object} map[string]string
+// @Failure      401 {object} map[string]string
+// @Router       /profile [patch]
+func (uc *UserController) UpdateProfile(ctx *gin.Context) {
+    userIDValue, exists := ctx.Get("userID")
+    if !exists {
+        ctx.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "User not authenticated"})
+        return
+    }
+    userID := userIDValue.(int64)
+
+    phone := ctx.PostForm("phone")
+    address := ctx.PostForm("address")
+    file, _ := ctx.FormFile("image")
+
+    profile, err := models.UpdateProfile(uc.DB, userID, phone, address, file)
+    if err != nil {
+        ctx.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
+        return
+    }
+
+    ctx.JSON(http.StatusOK, gin.H{"status": "success", "data": profile})
+}
+
+// GetProfile godoc
+// @Summary Get current user's profile
+// @Description Get profile info for the logged-in user
+// @Tags Profile
+// @Accept json
+// @Produce json
+// @Success 200 {object} models.ProfileUser
+// @Failure 401 {object} map[string]interface{}
+// @Router /profile [get]
+// @Security BearerAuth
+func (uc *UserController) GetProfile(ctx *gin.Context) {
+    userIDValue, exists := ctx.Get("userID")
+    if !exists {
+        ctx.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "User not authenticated"})
+        return
+    }
+    userID := userIDValue.(int64)
+
+    var profile models.ProfileUser
+    err := uc.DB.QueryRow(ctx, `
+        SELECT id, phone, address, image, user_id, created_at, updated_at
+        FROM profile WHERE user_id=$1
+    `, userID).Scan(&profile.ID, &profile.Phone, &profile.Address, &profile.Image, &profile.UserID, &profile.CreatedAt, &profile.UpdatedAt)
+
+    if err != nil {
+        ctx.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+        return
+    }
+
+    ctx.JSON(http.StatusOK, gin.H{"status": "success", "data": profile})
+}
+
+
+
+
 
