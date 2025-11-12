@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"main/libs"
 	"main/models"
@@ -16,6 +17,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -1267,24 +1269,27 @@ func (pc *ProductController) AddToCart(ctx *gin.Context) {
 	userIDValue, exists := ctx.Get("userID")
 	if !exists {
 		ctx.JSON(http.StatusUnauthorized, gin.H{
-			"success": false, 
-			"message": "Unauthorized"})
+			"success": false,
+			"message": "Unauthorized",
+		})
 		return
 	}
 
 	userID, ok := userIDValue.(int64)
 	if !ok {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false, 
-			"message": "invalid user id"})
+			"success": false,
+			"message": "Invalid user id",
+		})
 		return
 	}
 
 	var carts []models.Cart
 	if err := ctx.ShouldBindJSON(&carts); err != nil {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false, 
-			"message": err.Error()})
+			"success": false,
+			"message": err.Error(),
+		})
 		return
 	}
 
@@ -1292,9 +1297,18 @@ func (pc *ProductController) AddToCart(ctx *gin.Context) {
 	for _, c := range carts {
 		item, err := models.AddOrUpdateCart(pc.DB, userID, c.ProductID, c.SizeID, c.VariantID, c.Quantity)
 		if err != nil {
+			if err.Error() == "quantity exceeds available stock" {
+				ctx.JSON(http.StatusBadRequest, gin.H{
+					"success": false,
+					"message": err.Error(),
+				})
+				return
+			}
+			// Error lainnya
 			ctx.JSON(http.StatusInternalServerError, gin.H{
-				"success": false, 
-				"message": err.Error()})
+				"success": false,
+				"message": err.Error(),
+			})
 			return
 		}
 		results = append(results, item)
@@ -1356,8 +1370,14 @@ func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
 		})
 		return
 	}
-	userID, ok := userIDValue.(int64)
-	if !ok {
+
+	var userID int64
+	switch v := userIDValue.(type) {
+	case int64:
+		userID = v
+	case float64:
+		userID = int64(v)
+	default:
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"status":  "error",
 			"message": "Invalid user ID type",
@@ -1377,6 +1397,57 @@ func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
 
 	req.UserID = userID
 
+	var userEmail string
+	err := pc.DB.QueryRow(ctx.Request.Context(), "SELECT email FROM users WHERE id=$1", userID).Scan(&userEmail)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Failed to fetch user email",
+			"error":   err.Error(),
+		})
+		return
+	}
+	if req.Email == "" {
+		req.Email = userEmail
+	}
+
+	var profilePhone, profileAddress *string
+	err = pc.DB.QueryRow(ctx.Request.Context(),
+		"SELECT phone, address FROM profile WHERE user_id=$1", userID).
+		Scan(&profilePhone, &profileAddress)
+	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"status":  "error",
+			"message": "Failed to fetch user profile",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	if req.Phone == "" {
+		if profilePhone != nil {
+			req.Phone = *profilePhone
+		} else {
+			ctx.JSON(http.StatusBadRequest, gin.H{
+				"status":  "error",
+				"message": "Phone must be provided",
+			})
+			return
+		}
+	}
+
+	if req.Address == "" {
+		if profileAddress != nil {
+			req.Address = *profileAddress
+		} else {
+			ctx.JSON(http.StatusBadRequest, gin.H{
+				"status":  "error",
+				"message": "Address must be provided",
+			})
+			return
+		}
+	}
+
 	order, err := models.CreateOrderTransaction(pc.DB, req)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
@@ -1391,3 +1462,5 @@ func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
 		"data":   order,
 	})
 }
+
+
