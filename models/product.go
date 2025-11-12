@@ -1,8 +1,11 @@
 package models
 
 import (
+	"context"
 	"mime/multipart"
 	"time"
+
+	"github.com/jackc/pgx/v5/pgxpool"
 )
 
 type Product struct {
@@ -106,3 +109,90 @@ type RecommendedProduct struct {
 	ProductID     int64 `json:"product_id"`
 	RecommendedID int64 `json:"recommended_id"`
 }
+
+
+type Cart struct {
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id"`
+	ProductID int64     `json:"product_id"`
+	SizeID    *int64    `json:"size_id,omitempty"`
+	VariantID *int64    `json:"variant_id,omitempty"`
+	Quantity  int       `json:"quantity"`
+	CreatedAt time.Time `json:"created_at"`
+	UpdatedAt time.Time `json:"updated_at"`
+}
+
+type CartItemResponse struct {
+	ProductID   int64   `json:"product_id"`
+	Title       string  `json:"title"`
+	Description string  `json:"description"`
+	BasePrice   float64 `json:"base_price"`
+	Image       string  `json:"image"`
+	Size        string  `json:"size,omitempty"`
+	Variant     string  `json:"variant,omitempty"`
+	Quantity    int     `json:"quantity"`
+}
+
+
+
+func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantID *int64, quantity int) (CartItemResponse, error) {
+	ctx := context.Background()
+	var cartID int64
+
+	checkQuery := `
+		SELECT id, quantity FROM carts 
+		WHERE user_id=$1 AND product_id=$2 AND 
+		      COALESCE(size_id, 0) = COALESCE($3, 0) AND 
+		      COALESCE(variant_id, 0) = COALESCE($4, 0)
+		LIMIT 1
+	`
+	var existingQty int
+	err := db.QueryRow(ctx, checkQuery, userID, productID, sizeID, variantID).Scan(&cartID, &existingQty)
+	if err == nil {
+		newQty := existingQty + quantity
+		updateQuery := `UPDATE carts SET quantity=$1, updated_at=NOW() WHERE id=$2`
+		_, err := db.Exec(ctx, updateQuery, newQty, cartID)
+		if err != nil {
+			return CartItemResponse{}, err
+		}
+	} else {
+		insertQuery := `
+			INSERT INTO carts (user_id, product_id, size_id, variant_id, quantity, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
+			RETURNING id
+		`
+		err := db.QueryRow(ctx, insertQuery, userID, productID, sizeID, variantID, quantity).Scan(&cartID)
+		if err != nil {
+			return CartItemResponse{}, err
+		}
+	}
+
+	detailQuery := `
+		SELECT 
+			c.product_id,
+			p.title,
+			p.description,
+			p.base_price,
+			COALESCE(pi.image, '') AS image,
+			COALESCE(s.name, '') AS size_name,
+			COALESCE(v.name, '') AS variant_name,
+			c.quantity
+		FROM carts c
+		JOIN products p ON p.id = c.product_id
+		LEFT JOIN product_images pi ON pi.product_id = p.id
+		LEFT JOIN sizes s ON s.id = c.size_id
+		LEFT JOIN variants v ON v.id = c.variant_id
+		WHERE c.id = $1
+	`
+	var item CartItemResponse
+	err = db.QueryRow(ctx, detailQuery, cartID).Scan(
+		&item.ProductID, &item.Title, &item.Description,
+		&item.BasePrice, &item.Image, &item.Size, &item.Variant, &item.Quantity,
+	)
+	if err != nil {
+		return CartItemResponse{}, err
+	}
+
+	return item, nil
+}
+
