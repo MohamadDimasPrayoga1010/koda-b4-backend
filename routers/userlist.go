@@ -20,4 +20,6 @@ func AdminUserRoutes(r *gin.Engine, pg *pgxpool.Pool) {
 		admin.PATCH("/users/:id", uc.EditUser)
 		admin.DELETE("/users/:id", uc.DeleteUser)
 	}
+	r.PATCH("/profile", middlewares.AuthMiddleware(""), uc.UpdateProfile)
+	r.GET("/profile", middlewares.AuthMiddleware(""), uc.GetProfile)
 }
