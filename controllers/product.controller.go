@@ -956,7 +956,20 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 		}
 	}
 
-	filter.SortBy = ctx.DefaultQuery("sortby", "name") 
+	filter.SortBy = ctx.DefaultQuery("sortby", "name")
+	searchQuery := ctx.Query("q") 
+
+	pageStr := ctx.DefaultQuery("page", "1")
+	limitStr := ctx.DefaultQuery("limit", "10")
+	page, _ := strconv.Atoi(pageStr)
+	limit, _ := strconv.Atoi(limitStr)
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
+	offset := (page - 1) * limit
 
 	query := `
 		SELECT 
@@ -1002,6 +1015,12 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 		filterIndex++
 	}
 
+	if searchQuery != "" {
+		query += fmt.Sprintf(" AND (LOWER(p.title) LIKE LOWER($%d) OR LOWER(p.description) LIKE LOWER($%d))", filterIndex, filterIndex)
+		pFilter = append(pFilter, "%"+searchQuery+"%")
+		filterIndex++
+	}
+
 	query += " GROUP BY p.id, pi.image, v.name"
 
 	switch filter.SortBy {
@@ -1012,6 +1031,8 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 	default:
 		query += " ORDER BY p.title ASC"
 	}
+
+	query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
 
 	rows, err := pc.DB.Query(context.Background(), query, pFilter...)
 	if err != nil {
@@ -1054,19 +1075,32 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 			"description": desc,
 			"base_price":  price,
 			"image":       image,
-			"variant":     variantName, 
-			"sizes":       sizes,       
+			"variant":     variantName,
+			"sizes":       sizes,
 		})
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Data produk berhasil difilter",
+		"page":    page,
+		"limit":   limit,
 		"data":    products,
 	})
 }
 
 
+
+// GetProductDetail godoc
+// @Summary Get product detail by ID
+// @Description Returns detailed information of a product including images, sizes, and recommended products
+// @Tags Products
+// @Param id path int true "Product ID"
+// @Produce json
+// @Success 200 {object} models.ProductDetail
+// @Failure 400 {object} map[string]interface{} "Invalid product ID"
+// @Failure 404 {object} map[string]interface{} "Product not found"
+// @Router /products/{id} [get]
 func (pc *ProductController) GetProductDetail(ctx *gin.Context) {
 
 	idParam := ctx.Param("id")
@@ -1229,5 +1263,39 @@ func (pc *ProductController) GetProductDetail(ctx *gin.Context) {
 }
 
 
+func (pc *ProductController) AddToCart(ctx *gin.Context) {
+	userIDValue, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Unauthorized"})
+		return
+	}
 
+	userID, ok := userIDValue.(int64)
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid user id"})
+		return
+	}
+
+	var carts []models.Cart
+	if err := ctx.ShouldBindJSON(&carts); err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		return
+	}
+
+	var results []models.CartItemResponse
+	for _, c := range carts {
+		item, err := models.AddOrUpdateCart(pc.DB, userID, c.ProductID, c.SizeID, c.VariantID, c.Quantity)
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+			return
+		}
+		results = append(results, item)
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Items added successfully",
+		"result":  results,
+	})
+}
 
