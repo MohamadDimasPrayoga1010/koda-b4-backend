@@ -27,4 +27,5 @@ func ProductRoutes(r *gin.Engine, pg *pgxpool.Pool) {
 	r.GET("/favorite-products", pc.GetFavoriteProducts)
 	r.GET("/products", pc.FilterProducts)
 	r.GET("/products/:id", pc.GetProductDetail)
+	r.POST("/cart",middlewares.AuthMiddleware(""), pc.AddToCart)
 }
