@@ -125,7 +125,6 @@ type Cart struct {
 type CartItemResponse struct {
 	ProductID   int64   `json:"product_id"`
 	Title       string  `json:"title"`
-	Description string  `json:"description"`
 	BasePrice   float64 `json:"base_price"`
 	Image       string  `json:"image"`
 	Size        string  `json:"size,omitempty"`
@@ -171,7 +170,6 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 		SELECT 
 			c.product_id,
 			p.title,
-			p.description,
 			p.base_price,
 			COALESCE(pi.image, '') AS image,
 			COALESCE(s.name, '') AS size_name,
@@ -186,7 +184,7 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 	`
 	var item CartItemResponse
 	err = db.QueryRow(ctx, detailQuery, cartID).Scan(
-		&item.ProductID, &item.Title, &item.Description,
+		&item.ProductID, &item.Title,
 		&item.BasePrice, &item.Image, &item.Size, &item.Variant, &item.Quantity,
 	)
 	if err != nil {
@@ -196,3 +194,43 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 	return item, nil
 }
 
+
+func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, error) {
+	query := `
+		SELECT 
+			c.product_id,
+			p.title,
+			p.base_price,
+			COALESCE(pi.image, '') AS image,
+			COALESCE(s.name, '') AS size,
+			COALESCE(v.name, '') AS variant,
+			c.quantity
+		FROM carts c
+		JOIN products p ON p.id = c.product_id
+		LEFT JOIN LATERAL (
+			SELECT image FROM product_images WHERE product_id=p.id ORDER BY id ASC LIMIT 1
+		) pi ON true
+		LEFT JOIN sizes s ON s.id = c.size_id
+		LEFT JOIN variants v ON v.id = c.variant_id
+		WHERE c.user_id = $1
+		ORDER BY c.created_at ASC
+	`
+
+	rows, err := db.Query(context.Background(), query, userID)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []CartItemResponse
+	for rows.Next() {
+		var item CartItemResponse
+		if err := rows.Scan(
+			&item.ProductID, &item.Title, &item.BasePrice, &item.Image, &item.Size, &item.Variant, &item.Quantity,
+		); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, nil
+}
