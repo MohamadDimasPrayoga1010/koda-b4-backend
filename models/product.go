@@ -77,9 +77,9 @@ type ProductDetail struct {
 	Stock       int                      `json:"stock"`
 	CategoryID  int64                    `json:"category_id"`
 	Variant     *Variant                 `json:"variant,omitempty"`
-	Sizes       []Size                   `json:"sizes"`       
-	Images      []ProductImage           `json:"images"`      
-	Recommended []RecommendedProductInfo `json:"recommended"` 
+	Sizes       []Size                   `json:"sizes"`
+	Images      []ProductImage           `json:"images"`
+	Recommended []RecommendedProductInfo `json:"recommended"`
 	CreatedAt   time.Time                `json:"created_at"`
 	UpdatedAt   time.Time                `json:"updated_at"`
 }
@@ -92,13 +92,11 @@ type RecommendedProductInfo struct {
 	Stock       int            `json:"stock"`
 	CategoryID  int64          `json:"category_id"`
 	Variant     *Variant       `json:"variant,omitempty"`
-	Sizes       []Size         `json:"sizes"`  
+	Sizes       []Size         `json:"sizes"`
 	Images      []ProductImage `json:"images"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 }
-
-
 
 type Variant struct {
 	ID   int64  `json:"id"`
@@ -109,7 +107,6 @@ type RecommendedProduct struct {
 	ProductID     int64 `json:"product_id"`
 	RecommendedID int64 `json:"recommended_id"`
 }
-
 
 type Cart struct {
 	ID        int64     `json:"id"`
@@ -123,16 +120,15 @@ type Cart struct {
 }
 
 type CartItemResponse struct {
-	ProductID   int64   `json:"product_id"`
-	Title       string  `json:"title"`
-	BasePrice   float64 `json:"base_price"`
-	Image       string  `json:"image"`
-	Size        string  `json:"size,omitempty"`
-	Variant     string  `json:"variant,omitempty"`
-	Quantity    int     `json:"quantity"`
+	ProductID int64   `json:"product_id"`
+	Title     string  `json:"title"`
+	BasePrice float64 `json:"base_price"`
+	Image     string  `json:"image"`
+	Size      string  `json:"size,omitempty"`
+	Variant   string  `json:"variant,omitempty"`
+	Quantity  int     `json:"quantity"`
+	Subtotal  float64 `json:"subtotal"`
 }
-
-
 
 func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantID *int64, quantity int) (CartItemResponse, error) {
 	ctx := context.Background()
@@ -194,7 +190,6 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 	return item, nil
 }
 
-
 func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, error) {
 	query := `
 		SELECT 
@@ -204,11 +199,16 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, error) {
 			COALESCE(pi.image, '') AS image,
 			COALESCE(s.name, '') AS size,
 			COALESCE(v.name, '') AS variant,
-			c.quantity
+			c.quantity,
+			( (p.base_price + COALESCE(s.additional_price, 0)) * c.quantity ) AS subtotal
 		FROM carts c
 		JOIN products p ON p.id = c.product_id
 		LEFT JOIN LATERAL (
-			SELECT image FROM product_images WHERE product_id=p.id ORDER BY id ASC LIMIT 1
+			SELECT image 
+			FROM product_images 
+			WHERE product_id = p.id 
+			ORDER BY id ASC 
+			LIMIT 1
 		) pi ON true
 		LEFT JOIN sizes s ON s.id = c.size_id
 		LEFT JOIN variants v ON v.id = c.variant_id
@@ -226,7 +226,14 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, error) {
 	for rows.Next() {
 		var item CartItemResponse
 		if err := rows.Scan(
-			&item.ProductID, &item.Title, &item.BasePrice, &item.Image, &item.Size, &item.Variant, &item.Quantity,
+			&item.ProductID,
+			&item.Title,
+			&item.BasePrice,
+			&item.Image,
+			&item.Size,
+			&item.Variant,
+			&item.Quantity,
+			&item.Subtotal, 
 		); err != nil {
 			return nil, err
 		}
@@ -234,3 +241,4 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, error) {
 	}
 	return items, nil
 }
+

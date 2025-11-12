@@ -53,7 +53,7 @@ func AdminOnly() gin.HandlerFunc {
 	}
 }
 
-func AuthMiddleware(role string) gin.HandlerFunc {
+func AuthMiddleware(requiredRole string) gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		authHeader := ctx.GetHeader("Authorization")
 		if authHeader == "" || !strings.HasPrefix(authHeader, "Bearer ") {
@@ -61,10 +61,11 @@ func AuthMiddleware(role string) gin.HandlerFunc {
 			ctx.Abort()
 			return
 		}
-		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 
+		tokenString := strings.TrimPrefix(authHeader, "Bearer ")
 		secret := os.Getenv("JWT_SECRET")
 		claims := &libs.UserPayload{}
+
 		token, err := jwt.ParseWithClaims(tokenString, claims, func(t *jwt.Token) (interface{}, error) {
 			return []byte(secret), nil
 		})
@@ -75,11 +76,19 @@ func AuthMiddleware(role string) gin.HandlerFunc {
 			return
 		}
 
-		if claims.Role != role{
-			ctx.JSON(401, gin.H{"success": false, "message": "Not permission"})
+		ctx.Set("userID", int64(claims.Id))  
+		ctx.Set("userEmail", claims.Email)
+		ctx.Set("userRole", claims.Role)
+
+
+		if requiredRole != "" && claims.Role != requiredRole {
+			ctx.JSON(403, gin.H{"success": false, "message": "Not permission"})
 			ctx.Abort()
-			return 
+			return
 		}
+
 		ctx.Next()
 	}
-} 
+}
+
+ 
