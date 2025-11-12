@@ -1266,19 +1266,25 @@ func (pc *ProductController) GetProductDetail(ctx *gin.Context) {
 func (pc *ProductController) AddToCart(ctx *gin.Context) {
 	userIDValue, exists := ctx.Get("userID")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "Unauthorized"})
+		ctx.JSON(http.StatusUnauthorized, gin.H{
+			"success": false, 
+			"message": "Unauthorized"})
 		return
 	}
 
 	userID, ok := userIDValue.(int64)
 	if !ok {
-		ctx.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "invalid user id"})
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false, 
+			"message": "invalid user id"})
 		return
 	}
 
 	var carts []models.Cart
 	if err := ctx.ShouldBindJSON(&carts); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{"success": false, "message": err.Error()})
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false, 
+			"message": err.Error()})
 		return
 	}
 
@@ -1286,7 +1292,9 @@ func (pc *ProductController) AddToCart(ctx *gin.Context) {
 	for _, c := range carts {
 		item, err := models.AddOrUpdateCart(pc.DB, userID, c.ProductID, c.SizeID, c.VariantID, c.Quantity)
 		if err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+			ctx.JSON(http.StatusInternalServerError, gin.H{
+				"success": false, 
+				"message": err.Error()})
 			return
 		}
 		results = append(results, item)
@@ -1304,34 +1312,37 @@ func (pc *ProductController) GetCart(ctx *gin.Context) {
 	userIDValue, exists := ctx.Get("userID")
 	if !exists {
 		ctx.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "Unauthorized: user not found",
-		})
+			"success": false, 
+			"message": "Unauthorized"})
 		return
 	}
 
 	userID, ok := userIDValue.(int64)
 	if !ok {
 		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "invalid user id",
-		})
+			"success": false, 
+			"message": "invalid user id"})
 		return
 	}
 
 	cartItems, err := models.GetCartByUser(pc.DB, userID)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
-		})
+			"success": false, 
+			"message": err.Error()})
 		return
+	}
+
+	var total float64
+	for _, item := range cartItems {
+		total += item.Subtotal
 	}
 
 	ctx.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "Cart fetched successfully",
 		"result":  cartItems,
+		"total":   total, 
 	})
 }
 

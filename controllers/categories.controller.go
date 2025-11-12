@@ -23,8 +23,7 @@ type CategoryController struct {
 // @Failure 500 {object} models.Response
 // @Router /admin/categories [get]
 func (cc *CategoryController) GetCategories(ctx *gin.Context) {
-	rows, err := cc.DB.Query(context.Background(),
-		`SELECT id, name, created_at, updated_at FROM categories ORDER BY name ASC`)
+	categories, err := models.GetAllCategories(cc.DB)
 	if err != nil {
 		ctx.JSON(500, models.Response{
 			Success: false,
@@ -33,14 +32,6 @@ func (cc *CategoryController) GetCategories(ctx *gin.Context) {
 		})
 		return
 	}
-	defer rows.Close()
-
-	var categories []models.Category
-	for rows.Next() {
-		var c models.Category
-		rows.Scan(&c.ID, &c.Name, &c.CreatedAt, &c.UpdatedAt)
-		categories = append(categories, c)
-	}
 
 	ctx.JSON(200, models.Response{
 		Success: true,
@@ -48,6 +39,7 @@ func (cc *CategoryController) GetCategories(ctx *gin.Context) {
 		Data:    categories,
 	})
 }
+
 
 // GetCategoryByID godoc
 // @Summary Get category by ID
@@ -71,15 +63,12 @@ func (cc *CategoryController) GetCategoryByID(ctx *gin.Context) {
 		return
 	}
 
-	var c models.Category
-	err = cc.DB.QueryRow(context.Background(),
-		`SELECT id, name, created_at, updated_at FROM categories WHERE id=$1`, catID).
-		Scan(&c.ID, &c.Name, &c.CreatedAt, &c.UpdatedAt)
-
+	category, err := models.GetCategoryByID(cc.DB, catID)
 	if err != nil {
 		ctx.JSON(404, models.Response{
 			Success: false,
 			Message: "Category not found",
+			Data:    err.Error(),
 		})
 		return
 	}
@@ -87,9 +76,10 @@ func (cc *CategoryController) GetCategoryByID(ctx *gin.Context) {
 	ctx.JSON(200, models.Response{
 		Success: true,
 		Message: "Category fetched successfully",
-		Data:    c,
+		Data:    category,
 	})
 }
+
 
 // CreateCategory godoc
 // @Summary Create category
@@ -116,11 +106,7 @@ func (cc *CategoryController) CreateCategory(ctx *gin.Context) {
 		return
 	}
 
-	var newID int64
-	err := cc.DB.QueryRow(context.Background(),
-		`INSERT INTO categories (name, created_at, updated_at) VALUES ($1, now(), now()) RETURNING id`,
-		req.Name).Scan(&newID)
-
+	category, err := models.CreateCategory(cc.DB, req.Name)
 	if err != nil {
 		ctx.JSON(500, models.Response{
 			Success: false,
@@ -134,11 +120,14 @@ func (cc *CategoryController) CreateCategory(ctx *gin.Context) {
 		Success: true,
 		Message: "Category created successfully",
 		Data: gin.H{
-			"id":   newID,
-			"name": req.Name,
+			"id":         category.ID,
+			"name":       category.Name,
+			"created_at": category.CreatedAt,
+			"updated_at": category.UpdatedAt,
 		},
 	})
 }
+
 
 // UpdateCategory godoc
 // @Summary Update category
