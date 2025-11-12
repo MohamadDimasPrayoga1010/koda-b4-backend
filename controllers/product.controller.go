@@ -1299,3 +1299,39 @@ func (pc *ProductController) AddToCart(ctx *gin.Context) {
 	})
 }
 
+
+func (pc *ProductController) GetCart(ctx *gin.Context) {
+	userIDValue, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Unauthorized: user not found",
+		})
+		return
+	}
+
+	userID, ok := userIDValue.(int64)
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "invalid user id",
+		})
+		return
+	}
+
+	cartItems, err := models.GetCartByUser(pc.DB, userID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "Cart fetched successfully",
+		"result":  cartItems,
+	})
+}
+
