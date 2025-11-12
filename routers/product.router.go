@@ -24,8 +24,10 @@ func ProductRoutes(r *gin.Engine, pg *pgxpool.Pool) {
 		admin.PATCH("/products/:id/images/:image_id", pc.UpdateProductImage) 
 		admin.DELETE("/products/:id/images/:image_id", pc.DeleteProductImage) 
 	}
-	r.GET("/favorite-products", pc.GetFavoriteProducts)
-	r.GET("/products", pc.FilterProducts)
-	r.GET("/products/:id", pc.GetProductDetail)
+	r.GET("/favorite-products", middlewares.AuthMiddleware(""),pc.GetFavoriteProducts)
+	r.GET("/products",middlewares.AuthMiddleware("") ,pc.FilterProducts)
+	r.GET("/products/:id",middlewares.AuthMiddleware("") ,pc.GetProductDetail)
 	r.POST("/cart",middlewares.AuthMiddleware(""), pc.AddToCart)
+	r.GET("/cart", middlewares.AuthMiddleware(""), pc.GetCart)
+	r.POST("transactions", middlewares.AuthMiddleware(""), pc.CreateTransaction)
 }
