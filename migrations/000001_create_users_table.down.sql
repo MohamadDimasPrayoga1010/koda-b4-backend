@@ -1,0 +1,3 @@
+DROP TABLE IF EXISTS forgot_password;
+DROP TABLE IF EXISTS profile;
+DROP TABLE IF EXISTS users; 
