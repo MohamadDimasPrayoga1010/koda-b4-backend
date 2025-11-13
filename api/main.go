@@ -5,27 +5,36 @@ import (
 	"main/docs"
 	"main/libs"
 	"main/routers"
+	"net/http"
 
+	"github.com/gin-gonic/gin"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
-	"github.com/gin-gonic/gin"
-	"net/http"
 )
 
 var router *gin.Engine
 
-func init() {
+
+func initRouter() *gin.Engine {
+	if router != nil {
+		return router
+	}
+
+
+	pg := configs.InitDbConfig()
+	libs.InitRedis()
+
+
+	router = routers.InitRouter(pg)
+
 
 	docs.SwaggerInfo.BasePath = "/"
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+
+	return router
 }
 
 func Handler(w http.ResponseWriter, r *http.Request) {
-	if router == nil {
-		pg := configs.InitDbConfig()
-		libs.InitRedis()
-		router = routers.InitRouter(pg)
-	}
-	router.ServeHTTP(w, r)
+	routerEngine := initRouter()
+	routerEngine.ServeHTTP(w, r)
 }
-

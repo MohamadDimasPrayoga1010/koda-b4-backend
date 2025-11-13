@@ -9,13 +9,18 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-func InitDB() *pgxpool.Pool {
+var DB *pgxpool.Pool
 
-	// if err := godotenv.Load(); err != nil {
-	// 	log.Fatal("Failed to load .env")
-	// }
+func InitDB() *pgxpool.Pool {
+	if DB != nil {
+		return DB
+	}
 
 	connStr := os.Getenv("DATABASE_URL")
+	if connStr == "" {
+		log.Fatal("DATABASE_URL is not set")
+	}
+
 	pool, err := pgxpool.New(context.Background(), connStr)
 	if err != nil {
 		log.Fatalf("Failed to connect to database: %v", err)
@@ -28,5 +33,6 @@ func InitDB() *pgxpool.Pool {
 	}
 
 	log.Println("Database connected successfully!")
-	return pool
+	DB = pool
+	return DB
 }
