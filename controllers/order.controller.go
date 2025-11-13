@@ -3,6 +3,7 @@ package controllers
 import (
 	"context"
 	"main/models"
+	"net/http"
 
 	"strconv"
 
@@ -187,3 +188,55 @@ func (tc *TransactionController) DeleteTransaction(ctx *gin.Context) {
 		"message": "Transaction deleted successfully",
 	})
 }
+
+
+func (tc *TransactionController) GetHistoryTransactions(ctx *gin.Context) {
+	userIDValue, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "Unauthorized",
+		})
+		return
+	}
+
+	userID, ok := userIDValue.(int64)
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "Invalid user ID",
+		})
+		return
+	}
+
+	monthStr := ctx.DefaultQuery("month", "0") 
+	status := ctx.DefaultQuery("status", "OnProgress")
+	pageStr := ctx.DefaultQuery("page", "1")
+	limitStr := ctx.DefaultQuery("limit", "10")
+
+	month, _ := strconv.Atoi(monthStr)
+	page, err := strconv.Atoi(pageStr)
+	if err != nil || page < 1 {
+		page = 1
+	}
+	limit, err := strconv.Atoi(limitStr)
+	if err != nil || limit < 1 {
+		limit = 10
+	}
+
+	histories, err := models.GetHistoryTransactions(tc.DB, userID, status, month, page, limit)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "History transactions fetched successfully",
+		"data":    histories,
+	})
+}
+
