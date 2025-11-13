@@ -10,12 +10,10 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-
-
 type TransactionItem struct {
-	Title string  `json:"title"`
-	Qty   int     `json:"qty"`
-	Size  string  `json:"size,omitempty"`
+	Title string `json:"title"`
+	Qty   int    `json:"qty"`
+	Size  string `json:"size,omitempty"`
 }
 
 type Transaction struct {
@@ -33,7 +31,7 @@ type Transaction struct {
 }
 
 func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, offset int) ([]Transaction, error) {
-	args := make([]interface{}, 0)
+	queriParams := make([]interface{}, 0)
 	argIdx := 1
 
 	allowedSort := map[string]bool{"created_at": true, "total": true, "invoice_number": true}
@@ -67,21 +65,18 @@ func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, off
 
 	if search != "" {
 		query += " AND (LOWER(u.fullname) LIKE LOWER($" + strconv.Itoa(argIdx) + ") OR LOWER(t.invoice_number) LIKE LOWER($" + strconv.Itoa(argIdx) + "))"
-		args = append(args, "%"+search+"%")
+		queriParams = append(queriParams, "%"+search+"%")
 		argIdx++
 	}
 
-
 	query += " GROUP BY t.id, u.fullname, t.address, t.phone, pm.name, sh.name"
-
 
 	query += " ORDER BY " + sort + " " + order
 
-
 	query += " LIMIT $" + strconv.Itoa(argIdx) + " OFFSET $" + strconv.Itoa(argIdx+1)
-	args = append(args, limit, offset)
+	queriParams = append(queriParams, limit, offset)
 
-	rows, err := db.Query(context.Background(), query, args...)
+	rows, err := db.Query(context.Background(), query, queriParams...)
 	if err != nil {
 		return nil, err
 	}
@@ -121,11 +116,9 @@ func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, off
 	return transactions, nil
 }
 
-
-
 func GetTransactionByID(db *pgxpool.Pool, id string) (Transaction, error) {
 	var t Transaction
-	t.OrderItems = make([]TransactionItem, 0) 
+	t.OrderItems = make([]TransactionItem, 0)
 
 	query := `
 		SELECT 
@@ -173,4 +166,66 @@ func GetTransactionByID(db *pgxpool.Pool, id string) (Transaction, error) {
 	itemRows.Close()
 
 	return t, nil
+}
+
+
+type HistoryTransaction struct {
+	ID            int64     `json:"id"`
+	InvoiceNumber string    `json:"invoice_number"`
+	Image         string    `json:"image"`
+	Total         float64   `json:"total"`
+	Status        string    `json:"status"`
+	CreatedAt     time.Time `json:"created_at"`
+}
+
+
+func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month, page, limit int) ([]HistoryTransaction, error) {
+	ctx := context.Background()
+	offset := (page - 1) * limit
+
+	query := `
+	SELECT 
+		t.id,
+		t.invoice_number,
+		t.total,
+		t.status,
+		t.created_at,
+		COALESCE(MAX(pi.image), '') AS image
+	FROM transactions t
+	LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
+	LEFT JOIN products p ON p.id = ti.product_id
+	LEFT JOIN product_images pi ON pi.product_id = p.id
+	WHERE t.user_id = $1
+	  AND t.status ILIKE $2
+`
+
+	queriParams := []interface{}{userID, status}
+
+	if month >= 1 && month <= 12 {
+		query += " AND EXTRACT(MONTH FROM t.created_at) = $" + strconv.Itoa(len(queriParams)+1)
+		queriParams = append(queriParams, month)
+	}
+
+	query += `
+		GROUP BY t.id, t.invoice_number, t.total, t.status, t.created_at
+		ORDER BY t.created_at DESC
+		LIMIT $` + strconv.Itoa(len(queriParams)+1) + " OFFSET $" + strconv.Itoa(len(queriParams)+2)
+	queriParams = append(queriParams, limit, offset)
+
+	rows, err := db.Query(ctx, query, queriParams...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var histories []HistoryTransaction
+	for rows.Next() {
+		var h HistoryTransaction
+		if err := rows.Scan(&h.ID, &h.InvoiceNumber, &h.Total, &h.Status, &h.CreatedAt, &h.Image); err != nil {
+			return nil, err
+		}
+		histories = append(histories, h)
+	}
+
+	return histories, nil
 }
