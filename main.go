@@ -6,10 +6,10 @@ import (
 	"main/libs"
 	"main/routers"
 
+	"github.com/joho/godotenv"
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
 )
-
 
 // @title Coffee Shop API
 // @version 1.0
@@ -17,6 +17,7 @@ import (
 // @host localhost:8085
 // @BasePath /
 func main() {
+		godotenv.Load()
 	pg := configs.InitDbConfig()
 	r := routers.InitRouter(pg)
 	libs.InitRedis()

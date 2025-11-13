@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"os"
 
-	"github.com/joho/godotenv"
 	"github.com/redis/go-redis/v9"
 )
 
@@ -13,7 +12,7 @@ var RedisClient *redis.Client
 var Ctx = context.Background()
 
 func InitRedis() *redis.Client {
-	godotenv.Load()
+
 
 	url := os.Getenv("REDIS_URL")
 	password := os.Getenv("REDIS_PASSWORD")

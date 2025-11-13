@@ -1,4 +1,3 @@
-basePath: /
 definitions:
   models.ForgotPasswordRequest:
     properties:
@@ -6,6 +5,96 @@ definitions:
         type: string
     required:
     - email
+    type: object
+  models.ProductDetail:
+    properties:
+      base_price:
+        type: number
+      category_id:
+        type: integer
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      images:
+        items:
+          $ref: '#/definitions/models.ProductImage'
+        type: array
+      recommended:
+        items:
+          $ref: '#/definitions/models.RecommendedProductInfo'
+        type: array
+      sizes:
+        items:
+          $ref: '#/definitions/models.Size'
+        type: array
+      stock:
+        type: integer
+      title:
+        type: string
+      updated_at:
+        type: string
+      variant:
+        $ref: '#/definitions/models.Variant'
+    type: object
+  models.ProductImage:
+    properties:
+      deleted_at:
+        type: string
+      image:
+        type: string
+      product_id:
+        type: integer
+      updated_at:
+        type: string
+    type: object
+  models.ProfileUser:
+    properties:
+      address:
+        type: string
+      created_at:
+        type: string
+      id:
+        type: integer
+      image:
+        type: string
+      phone:
+        type: string
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.RecommendedProductInfo:
+    properties:
+      base_price:
+        type: number
+      category_id:
+        type: integer
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      images:
+        items:
+          $ref: '#/definitions/models.ProductImage'
+        type: array
+      sizes:
+        items:
+          $ref: '#/definitions/models.Size'
+        type: array
+      stock:
+        type: integer
+      title:
+        type: string
+      updated_at:
+        type: string
+      variant:
+        $ref: '#/definitions/models.Variant'
     type: object
   models.ResetPasswordRequest:
     properties:
@@ -25,6 +114,15 @@ definitions:
         type: string
       success:
         type: boolean
+    type: object
+  models.Size:
+    properties:
+      additional_price:
+        type: number
+      id:
+        type: integer
+      name:
+        type: string
     type: object
   models.UserLogin:
     properties:
@@ -63,6 +161,13 @@ definitions:
       role:
         type: string
       token:
+        type: string
+    type: object
+  models.Variant:
+    properties:
+      id:
+        type: integer
+      name:
         type: string
     type: object
   models.VerifyOTPRequest:
@@ -961,6 +1066,32 @@ paths:
       summary: Verify OTP
       tags:
       - Auth
+  /favorite-product:
+    get:
+      consumes:
+      - application/json
+      description: Menampilkan daftar produk favorit (bisa diatur limit-nya lewat
+        query param ?limit=5)
+      parameters:
+      - default: 10
+        description: Limit produk favorit yang ditampilkan
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Get favorite products
+      tags:
+      - Products
   /product/{id}/images:
     get:
       consumes:
@@ -1101,4 +1232,158 @@ paths:
       summary: Update a product image
       tags:
       - Products
+  /products:
+    get:
+      consumes:
+      - application/json
+      description: Endpoint ini mengambil daftar produk berdasarkan kategori, favorit,
+        rentang harga, dan urutan (sort by). Semua parameter opsional.
+      parameters:
+      - collectionFormat: multi
+        description: ID kategori, bisa lebih dari satu
+        in: query
+        items:
+          type: integer
+        name: cat
+        type: array
+      - description: Filter produk favorit
+        example: true
+        in: query
+        name: favorite
+        type: boolean
+      - description: Batas harga minimum
+        example: 10000
+        in: query
+        name: price_min
+        type: number
+      - description: Batas harga maksimum
+        example: 50000
+        in: query
+        name: price_max
+        type: number
+      - description: 'Urutkan hasil: name=A-Z, baseprice=termurah ke termahal'
+        enum:
+        - name
+        - baseprice
+        example: baseprice
+        in: query
+        name: sortby
+        type: string
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Data produk berhasil difilter
+          schema:
+            additionalProperties: true
+            type: object
+        "500":
+          description: Terjadi kesalahan server
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Filter dan ambil daftar produk
+      tags:
+      - Products
+  /products/{id}:
+    get:
+      description: Returns detailed information of a product including images, sizes,
+        and recommended products
+      parameters:
+      - description: Product ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ProductDetail'
+        "400":
+          description: Invalid product ID
+          schema:
+            additionalProperties: true
+            type: object
+        "404":
+          description: Product not found
+          schema:
+            additionalProperties: true
+            type: object
+      summary: Get product detail by ID
+      tags:
+      - Products
+  /profile:
+    get:
+      consumes:
+      - application/json
+      description: Get profile info for the logged-in user
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ProfileUser'
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties: true
+            type: object
+      security:
+      - BearerAuth: []
+      summary: Get current user's profile
+      tags:
+      - Profile
+    patch:
+      consumes:
+      - multipart/form-data
+      description: Update phone, address, and profile image
+      parameters:
+      - description: Bearer <JWT token>
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - description: Phone number
+        in: formData
+        name: phone
+        type: string
+      - description: Address
+        in: formData
+        name: address
+        type: string
+      - description: Profile image (jpg, jpeg, png, max 2MB)
+        in: formData
+        name: image
+        type: file
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: OK
+          schema:
+            $ref: '#/definitions/models.ProfileUser'
+        "400":
+          description: Bad Request
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+        "401":
+          description: Unauthorized
+          schema:
+            additionalProperties:
+              type: string
+            type: object
+      summary: Update user profile
+      tags:
+      - Profile
+securityDefinitions:
+  BearerAuth:
+    in: header
+    name: Authorization
+    type: apiKey
 swagger: "2.0"

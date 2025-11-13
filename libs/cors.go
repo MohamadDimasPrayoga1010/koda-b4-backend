@@ -6,11 +6,9 @@ import (
 
 	"github.com/gin-contrib/cors"
 	"github.com/gin-gonic/gin"
-	"github.com/joho/godotenv"
 )
 
 func SetupCORS() gin.HandlerFunc {
-	godotenv.Load()
 	origin := os.Getenv("ALLOW_ORIGIN")
 	
 	config := cors.Config{

@@ -1,0 +1,349 @@
+########################################
+######          AUTH           #########
+########################################
+
+### REGISTER USER / ADMIN
+POST http://localhost:8085/auth/register
+Content-Type: application/json
+
+{
+  "fullname": "Admin Ganteng1",
+  "email": "admin100@mail.com",
+  "password": "123456",
+  "role": "admin"
+}
+
+### LOGIN
+POST http://localhost:8085/auth/login
+Content-Type: application/json
+
+{
+  "email": "admin@mail.com",
+  "password": "123456"
+}
+
+### REGISTER USER
+POST http://localhost:8085/auth/register
+Content-Type: application/json
+
+{
+  "fullname": "Admin Ganteng1",
+  "email": "user3@mail.com",
+  "password": "123456",
+  "role": "user"
+}
+
+### LOGIN
+POST http://localhost:8085/auth/login
+Content-Type: application/json
+
+{
+  "email": "user2@mail.com",
+  "password": "123456"
+}
+
+########################################
+######         CATEGORY           ######
+########################################
+
+### CREATE CATEGORY
+POST http://localhost:8085/admin/categories
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzUsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpc3MiOiJjb2ZmZWVzaG9wIiwiZXhwIjoxNzYzMDU2MTk3LCJpYXQiOjE3NjI5Njk3OTd9.MM0MZSI-oSw0M0i4JCnQK844ub67KEQ7f1xNHRBlUQ0
+
+{
+  "name": "Elektronik"
+}
+
+### GET CATEGORY
+GET http://localhost:8085/admin/categories
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzUsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpc3MiOiJjb2ZmZWVzaG9wIiwiZXhwIjoxNzYzMDE4NDIzLCJpYXQiOjE3NjI5MzIwMjN9.QgRK_SJ7QHRVHSTLEqhH15UC3Z28x45S_AAppSp_A40
+
+### GET CATEGORY BY ID
+GET http://localhost:8085/admin/categories/4
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzUsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpc3MiOiJjb2ZmZWVzaG9wIiwiZXhwIjoxNzYzMDE4NDIzLCJpYXQiOjE3NjI5MzIwMjN9.QgRK_SJ7QHRVHSTLEqhH15UC3Z28x45S_AAppSp_A40
+
+### GET UPDATE CATEGORY
+PATCH http://localhost:8085/admin/categories/7
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzUsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpc3MiOiJjb2ZmZWVzaG9wIiwiZXhwIjoxNzYzMDE4NDIzLCJpYXQiOjE3NjI5MzIwMjN9.QgRK_SJ7QHRVHSTLEqhH15UC3Z28x45S_AAppSp_A40
+
+{
+  "name": "Elektronik Rumah Tangga"
+}
+
+### DELETE CATEGORY
+DELETE http://localhost:8085/admin/categories/7
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzUsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpc3MiOiJjb2ZmZWVzaG9wIiwiZXhwIjoxNzYzMDE4NDIzLCJpYXQiOjE3NjI5MzIwMjN9.QgRK_SJ7QHRVHSTLEqhH15UC3Z28x45S_AAppSp_A40
+
+
+#######################################
+#####           CART             ######
+#######################################
+
+### GET CART
+GET http://localhost:8085/cart
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzksImVtYWlsIjoidXNlcjNAbWFpbC5jb20iLCJyb2xlIjoidXNlciIsImlzcyI6ImNvZmZlZXNob3AiLCJleHAiOjE3NjMwNjEwMTYsImlhdCI6MTc2Mjk3NDYxNn0.xeJUkCZNCkedwCspKh1yWKiuP4IT-C1Qa7rOECTvqpo
+
+#######################################
+#####        TRANSACTIONS        ######
+#######################################
+POST http://localhost:8085/transactions
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzksImVtYWlsIjoidXNlcjNAbWFpbC5jb20iLCJyb2xlIjoidXNlciIsImlzcyI6ImNvZmZlZXNob3AiLCJleHAiOjE3NjMwNjEwMTYsImlhdCI6MTc2Mjk3NDYxNn0.xeJUkCZNCkedwCspKh1yWKiuP4IT-C1Qa7rOECTvqpo
+
+{
+  "fullname": "",
+  "email": "",
+  "phone": "",
+  "address": "",
+  "payment_method_id": 1 ,
+  "shipping_id": 1
+}
+
+
+### POST TRANSACTION
+POST http://localhost:8085/transactions
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzksImVtYWlsIjoidXNlcjNAbWFpbC5jb20iLCJyb2xlIjoidXNlciIsImlzcyI6ImNvZmZlZXNob3AiLCJleHAiOjE3NjMwNjA5MDAsImlhdCI6MTc2Mjk3NDUwMH0.WiOG9I4sFH0gjprh4lRxKTaTw6MQLmp21MmhBKiwUvQ
+
+{
+  "fullname": "TETS",
+   "email": "user2@mail.com",
+  "phone": "08123456789",
+  "address": "Jl. Contoh No.123",
+  "payment_method_id": 1,
+  "shipping_id": 2
+}
+
+#######################################
+#####           Profile          ######
+#######################################
+
+### Update Profile
+PATCH http://localhost:8085/profile
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzksImVtYWlsIjoidXNlcjNAbWFpbC5jb20iLCJyb2xlIjoidXNlciIsImlzcyI6ImNvZmZlZXNob3AiLCJleHAiOjE3NjMwNTQ5NzcsImlhdCI6MTc2Mjk2ODU3N30.b0BhkXLJsG8mcszP6KWCYyVfI8otJAl-RLN0HQLqyOE
+Content-Type: application/x-www-form-urlencoded
+
+phone=08123456789&address=Jl.%20Contoh%20No.123&image=contoh/path/to/file.jpg
+
+
+#######################################
+#####           History          ######
+#######################################
+
+### GET HISTORY
+GET http://localhost:8085/history
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzcsImVtYWlsIjoidXNlcjJAbWFpbC5jb20iLCJyb2xlIjoidXNlciIsImlzcyI6ImNvZmZlZXNob3AiLCJleHAiOjE3NjMxMDIwNTcsImlhdCI6MTc2MzAxNTY1N30.z_IPsZDtWFAfY4Ht0qIxyE1CAGrMfomfrXAwMDvjPKg
+
+
+### GET HISTORY
+GET http://localhost:8085/history?month=11&status=OnProgress&page=1&limit=5
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzcsImVtYWlsIjoidXNlcjJAbWFpbC5jb20iLCJyb2xlIjoidXNlciIsImlzcyI6ImNvZmZlZXNob3AiLCJleHAiOjE3NjMwOTI3NTYsImlhdCI6MTc2MzAwNjM1Nn0.8sD0cbxHbKpwUe8buAA4jZvoGoYKBOJausinnRIjDwM
+
+### GET HISTORY DETAIL BY ID
+http://localhost:8085/history/14
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzcsImVtYWlsIjoidXNlcjJAbWFpbC5jb20iLCJyb2xlIjoidXNlciIsImlzcyI6ImNvZmZlZXNob3AiLCJleHAiOjE3NjMxMDIwNTcsImlhdCI6MTc2MzAxNTY1N30.z_IPsZDtWFAfY4Ht0qIxyE1CAGrMfomfrXAwMDvjPKg
+
+
+
+
+
+
+
+### GET PRODUCT
+GET http://localhost:8085/products
+Content-Type: application/json
+
+### test create product
+
+### Create Product (admin)
+POST http://localhost:8085/admin/products
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzMsImVtYWlsIjoiemFAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaXNzIjoiY29mZmVlc2hvcCIsImV4cCI6MTc2MzAwNTM5MSwiaWF0IjoxNzYyOTE4OTkxfQ.SE9_fwsWilfUMO61XeN2fRHE1cYK4l1_d_8_0d-SZB0
+
+{
+  "title": "air putih2",
+  "description": "menyergarkan",
+  "base_price": 5000,
+  "stock": 53,
+  "category_id": 1,
+  "variant_id": 1,
+  "images": [
+    "https://example.com/img1.jpg",
+    "https://example.com/img2.jpg"
+  ],
+  "sizes": [1, 2, 3]
+}
+
+
+### ambil semua data
+GET http://localhost:8085/admin/products/
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzUsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpc3MiOiJjb2ZmZWVzaG9wIiwiZXhwIjoxNzYzMTEyMzkwLCJpYXQiOjE3NjMwMjU5OTB9.h4tYZhqP08n_mthhUzIsz2YXp2KE3ONhspI9RmVv9qc
+
+### ambil semua data
+GET http://localhost:8085/admin/products?page=5
+
+
+
+
+### ambil product berdasarkan id
+GET http://localhost:8085/admin/products/1
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzMsImVtYWlsIjoiemFAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaXNzIjoiY29mZmVlc2hvcCIsImV4cCI6MTc2MzAwNTQzOSwiaWF0IjoxNzYyOTE5MDM5fQ.ngsIWyP_UUFQMkvDJPMwFqy6pxcnKqdEX278ENuJHNM
+Content-Type: application/json
+
+
+### update product
+PATCH http://localhost:8085/admin/products/53
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzMsImVtYWlsIjoiemFAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaXNzIjoiY29mZmVlc2hvcCIsImV4cCI6MTc2MzAwNTQzOSwiaWF0IjoxNzYyOTE5MDM5fQ.ngsIWyP_UUFQMkvDJPMwFqy6pxcnKqdEX278ENuJHNM
+Content-Type: application/json
+
+{
+  "title": "Air Putih Premium",
+  "description": "Air segar alami dari pegunungan",
+  "base_price": 7500,
+  "stock": 80,
+  "category_id": 1,
+  "variant_id": 1,
+  "images": [
+    "https://example.com/new1.jpg",
+    "https://example.com/new2.jpg"
+  ],
+  "sizes": [1, 2]
+}
+
+### delete product
+DELETE http://localhost:8085/admin/products/51
+
+###
+GET http://localhost:8085/admin/orders
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzMsImVtYWlsIjoiemFAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaXNzIjoiY29mZmVlc2hvcCIsImV4cCI6MTc2MzAwNTQzOSwiaWF0IjoxNzYyOTE5MDM5fQ.ngsIWyP_UUFQMkvDJPMwFqy6pxcnKqdEX278ENuJHNM
+Content-Type: application/json
+###
+POST http://localhost:8085/admin/users
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzMsImVtYWlsIjoiemFAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaXNzIjoiY29mZmVlc2hvcCIsImV4cCI6MTc2MzAwNTQzOSwiaWF0IjoxNzYyOTE5MDM5fQ.ngsIWyP_UUFQMkvDJPMwFqy6pxcnKqdEX278ENuJHNM
+Content-Type: application/json
+{
+  "fullname": "Yoga",
+  "email": "Yoga@gmail.com",
+  "password": "123456",
+  "role": "admin",
+  "image": "https://example.com/john.jpg",
+  "phone": "08123456789",
+  "address": "Jakarta"
+}
+
+###
+GET http://localhost:8085/admin/users
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzEsImVtYWlsIjoiYWRtaW4xMjNAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaXNzIjoiY29mZmVlc2hvcCIsImV4cCI6MTc2Mjk3NTA0NiwiaWF0IjoxNzYyODg4NjQ2fQ.bDbMBhZlQuzQeSJCCnqOaMbrA-JkT5Km2bfR7f9YX3g
+
+###
+POST http://localhost:8085/admin/users
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzMsImVtYWlsIjoiemFAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaXNzIjoiY29mZmVlc2hvcCIsImV4cCI6MTc2MzAwNTQzOSwiaWF0IjoxNzYyOTE5MDM5fQ.ngsIWyP_UUFQMkvDJPMwFqy6pxcnKqdEX278ENuJHNM
+Content-Type: application/json
+
+{
+  "fullname": "Dimas",
+  "email": "Dimas@gmail.com",
+  "password": "123456",
+  "role": "admin",
+  "image": "https://example.com/DImas.jpg",
+  "phone": "08123456789",
+  "address": "Jakarta"
+}
+
+
+###
+PATCH http://localhost:8085/admin/users/25
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzMsImVtYWlsIjoiemFAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaXNzIjoiY29mZmVlc2hvcCIsImV4cCI6MTc2MzAwNTQzOSwiaWF0IjoxNzYyOTE5MDM5fQ.ngsIWyP_UUFQMkvDJPMwFqy6pxcnKqdEX278ENuJHNM
+Content-Type: application/json
+
+{
+  "fullname": "Yog Up",
+  "email": "yog@gmail.com",
+  "password": "newpassword123",
+  "role": "user",
+  "image": "https://example.com/john_updated.jpg",
+  "phone": "08123456789",
+  "address": "Jakarta dimassat"
+}
+
+###
+DELETE http://localhost:8085/admin/userslist/24
+
+###
+GET http://localhost:8085/admin/transactions/7
+
+###
+GET http://localhost:8085/admin/transactions
+
+###
+GET http://localhost:8085/admin/transactions
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzMsImVtYWlsIjoiemFAZ21haWwuY29tIiwicm9sZSI6ImFkbWluIiwiaXNzIjoiY29mZmVlc2hvcCIsImV4cCI6MTc2MzAwNTQzOSwiaWF0IjoxNzYyOTE5MDM5fQ.ngsIWyP_UUFQMkvDJPMwFqy6pxcnKqdEX278ENuJHNM
+Content-Type: application/json
+
+### LOGIN
+POST http://localhost:8085/auth/login
+Content-Type: application/json
+
+{
+    "email": "d@mail.com",
+    "password": "123456"
+}
+
+
+### ADD TO CART
+POST http://localhost:8085/cart/
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzksImVtYWlsIjoidXNlcjNAbWFpbC5jb20iLCJyb2xlIjoidXNlciIsImlzcyI6ImNvZmZlZXNob3AiLCJleHAiOjE3NjMwNTQ5NzcsImlhdCI6MTc2Mjk2ODU3N30.b0BhkXLJsG8mcszP6KWCYyVfI8otJAl-RLN0HQLqyOE
+
+[
+  {
+    "product_id": 1,
+    "size_id": 2,
+    "variant_id": 3,
+    "quantity": 1
+  },
+  {
+    "product_id": 11,
+    "size_id": 2,
+    "variant_id": 3,
+    "quantity": 5
+  }
+]
+
+
+
+###
+GET http://localhost:8085/cart/
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzQsImVtYWlsIjoiZEBtYWlsLmNvbSIsInJvbGUiOiJ1c2VyIiwiaXNzIjoiY29mZmVlc2hvcCIsImV4cCI6MTc2MzAwODQ4MCwiaWF0IjoxNzYyOTIyMDgwfQ.veU3iH67nv-TNXnEif8Fb1zmXJnM0JwOmgLDaJEgpYI
+
+### Get all transactions
+GET http://localhost:8085/admin/transactions?page=1&limit=30&search=&sort=created_at&order=desc
+Accept: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzUsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpc3MiOiJjb2ZmZWVzaG9wIiwiZXhwIjoxNzYzMDkyNjc4LCJpYXQiOjE3NjMwMDYyNzh9.sblzR_R54EsocaS-aWMaizA6lb92Q-O4KL_c74wRe3M
+
+### Get transaction by ID
+GET http://localhost:8085/admin/transactions/11
+Accept: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzUsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpc3MiOiJjb2ZmZWVzaG9wIiwiZXhwIjoxNzYzMDkyNjc4LCJpYXQiOjE3NjMwMDYyNzh9.sblzR_R54EsocaS-aWMaizA6lb92Q-O4KL_c74wRe3M
+
+
+### Update transaction status
+PATCH http://localhost:8085/admin/transactions/20/status
+Content-Type: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzUsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpc3MiOiJjb2ZmZWVzaG9wIiwiZXhwIjoxNzYzMDkyNjc4LCJpYXQiOjE3NjMwMDYyNzh9.sblzR_R54EsocaS-aWMaizA6lb92Q-O4KL_c74wRe3M
+
+{
+  "status_id": 3
+}
+
+### Delete transaction
+DELETE http://localhost:8085/admin/transactions/3
+Accept: application/json
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzUsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpc3MiOiJjb2ZmZWVzaG9wIiwiZXhwIjoxNzYzMDU2NjQ4LCJpYXQiOjE3NjI5NzAyNDh9.ysq31HgkeFbWFAGLpTINdDxcO5b0vY-cjkm8PbX0Oxg
+

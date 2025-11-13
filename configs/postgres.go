@@ -7,14 +7,13 @@ import (
 	"time"
 
 	"github.com/jackc/pgx/v5/pgxpool"
-	"github.com/joho/godotenv"
 )
 
 func InitDB() *pgxpool.Pool {
-	
-	if err := godotenv.Load(); err != nil {
-		log.Fatal("Failed to load .env")
-	}
+
+	// if err := godotenv.Load(); err != nil {
+	// 	log.Fatal("Failed to load .env")
+	// }
 
 	connStr := os.Getenv("DATABASE_URL")
 	pool, err := pgxpool.New(context.Background(), connStr)
