@@ -197,14 +197,10 @@ func (tc *TransactionController) DeleteTransaction(ctx *gin.Context) {
 // @Accept json
 // @Produce json
 // @Param Authorization header string true "Bearer token"
-// @Param status query string false "Transaction status filter, default 'on progress'"
-// @Param month query int false "Month filter (1-12), default all months"
-// @Param page query int false "Page number, default 1"
-// @Param limit query int false "Limit per page, default 5"
-// @Success 200 {object} gin.H{"success":true,"message":"History transactions fetched successfully","data":[]HistoryTransaction}
-// @Failure 400 {object} gin.H{"success":false,"message":"Invalid user ID"}
-// @Failure 401 {object} gin.H{"success":false,"message":"Unauthorized"}
-// @Failure 500 {object} gin.H{"success":false,"message":"Internal server error"}
+// @Param status query string false "Transaction status filter" default(on progress)
+// @Param month query int false "Month filter (1-12)" default(0)
+// @Param page query int false "Page number" default(1)
+// @Param limit query int false "Limit per page" default(5)
 // @Router /history [get]
 func (tc *TransactionController) GetHistoryTransactions(ctx *gin.Context) {
 	userIDValue, exists := ctx.Get("userID")

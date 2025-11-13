@@ -1,3 +1,4 @@
+basePath: /
 definitions:
   models.ForgotPasswordRequest:
     properties:
@@ -180,7 +181,7 @@ definitions:
     - email
     - otp
     type: object
-host: localhost:8085
+host: coffeeder-backend.vercel.app
 info:
   contact: {}
   description: API for Coffee Shop Application
@@ -566,7 +567,7 @@ paths:
         in: query
         name: limit
         type: integer
-      - description: Search by user fullname or order number
+      - description: Search by user fullname or invoice number
         in: query
         name: search
         type: string
@@ -1092,6 +1093,44 @@ paths:
       summary: Get favorite products
       tags:
       - Products
+  /history:
+    get:
+      consumes:
+      - application/json
+      description: Fetch transaction history for authenticated user. Supports filter
+        by status, month, pagination, and limit.
+      parameters:
+      - description: Bearer token
+        in: header
+        name: Authorization
+        required: true
+        type: string
+      - default: on progress
+        description: Transaction status filter
+        in: query
+        name: status
+        type: string
+      - default: 0
+        description: Month filter (1-12)
+        in: query
+        name: month
+        type: integer
+      - default: 1
+        description: Page number
+        in: query
+        name: page
+        type: integer
+      - default: 5
+        description: Limit per page
+        in: query
+        name: limit
+        type: integer
+      produces:
+      - application/json
+      responses: {}
+      summary: Get user transaction history
+      tags:
+      - Transactions
   /product/{id}/images:
     get:
       consumes:
@@ -1381,9 +1420,6 @@ paths:
       summary: Update user profile
       tags:
       - Profile
-securityDefinitions:
-  BearerAuth:
-    in: header
-    name: Authorization
-    type: apiKey
+schemes:
+- https
 swagger: "2.0"

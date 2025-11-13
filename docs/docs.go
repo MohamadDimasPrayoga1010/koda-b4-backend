@@ -585,7 +585,7 @@ const docTemplate = `{
                     },
                     {
                         "type": "string",
-                        "description": "Search by user fullname or order number",
+                        "description": "Search by user fullname or invoice number",
                         "name": "search",
                         "in": "query"
                     },
@@ -1376,6 +1376,59 @@ const docTemplate = `{
                 }
             }
         },
+        "/history": {
+            "get": {
+                "description": "Fetch transaction history for authenticated user. Supports filter by status, month, pagination, and limit.",
+                "consumes": [
+                    "application/json"
+                ],
+                "produces": [
+                    "application/json"
+                ],
+                "tags": [
+                    "Transactions"
+                ],
+                "summary": "Get user transaction history",
+                "parameters": [
+                    {
+                        "type": "string",
+                        "description": "Bearer token",
+                        "name": "Authorization",
+                        "in": "header",
+                        "required": true
+                    },
+                    {
+                        "type": "string",
+                        "default": "on progress",
+                        "description": "Transaction status filter",
+                        "name": "status",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 0,
+                        "description": "Month filter (1-12)",
+                        "name": "month",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 1,
+                        "description": "Page number",
+                        "name": "page",
+                        "in": "query"
+                    },
+                    {
+                        "type": "integer",
+                        "default": 5,
+                        "description": "Limit per page",
+                        "name": "limit",
+                        "in": "query"
+                    }
+                ],
+                "responses": {}
+            }
+        },
         "/product/{id}/images": {
             "get": {
                 "description": "Mengambil semua gambar dari product berdasarkan product ID",
@@ -2077,22 +2130,15 @@ const docTemplate = `{
                 }
             }
         }
-    },
-    "securityDefinitions": {
-        "BearerAuth": {
-            "type": "apiKey",
-            "name": "Authorization",
-            "in": "header"
-        }
     }
 }`
 
 // SwaggerInfo holds exported Swagger Info so clients can modify it
 var SwaggerInfo = &swag.Spec{
 	Version:          "1.0",
-	Host:             "localhost:8085",
-	BasePath:         "",
-	Schemes:          []string{},
+	Host:             "coffeeder-backend.vercel.app",
+	BasePath:         "/",
+	Schemes:          []string{"https"},
 	Title:            "Coffee Shop API",
 	Description:      "API for Coffee Shop Application",
 	InfoInstanceName: "swagger",
