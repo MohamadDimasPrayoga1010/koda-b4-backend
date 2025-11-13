@@ -19,4 +19,5 @@ func TransactionRoutes(r *gin.Engine, pg *pgxpool.Pool) {
 		admin.PATCH("/transactions/:id/status", tc.UpdateTransactionStatus)
 		admin.DELETE("/transactions/:id", tc.DeleteTransaction)
 	}
+	r.GET("/history", middlewares.AuthMiddleware(""), tc.GetHistoryTransactions)
 }
