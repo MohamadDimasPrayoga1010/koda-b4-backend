@@ -1,23 +1,28 @@
-package main
+package handler
 
 import (
 	"main/configs"
 	"main/docs"
 	"main/libs"
 	"main/routers"
-	"net/http"
 
 	swaggerFiles "github.com/swaggo/files"
 	ginSwagger "github.com/swaggo/gin-swagger"
+	"github.com/gin-gonic/gin"
+	"net/http"
 )
 
-func Handler(w http.ResponseWriter, r *http.Request) {
+var router *gin.Engine
+
+func init() {
 	pg := configs.InitDbConfig()
-	rtr := routers.InitRouter(pg)
 	libs.InitRedis()
+	router = routers.InitRouter(pg)
 
 	docs.SwaggerInfo.BasePath = "/"
-	rtr.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
+}
 
-	rtr.ServeHTTP(w, r)
+func Handler(w http.ResponseWriter, r *http.Request) {
+	router.ServeHTTP(w, r)
 }
