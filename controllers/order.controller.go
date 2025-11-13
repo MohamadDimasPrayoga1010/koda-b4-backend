@@ -190,6 +190,22 @@ func (tc *TransactionController) DeleteTransaction(ctx *gin.Context) {
 }
 
 
+// GetHistoryTransactions godoc
+// @Summary Get user transaction history
+// @Description Fetch transaction history for authenticated user. Supports filter by status, month, pagination, and limit.
+// @Tags Transactions
+// @Accept json
+// @Produce json
+// @Param Authorization header string true "Bearer token"
+// @Param status query string false "Transaction status filter, default 'on progress'"
+// @Param month query int false "Month filter (1-12), default all months"
+// @Param page query int false "Page number, default 1"
+// @Param limit query int false "Limit per page, default 5"
+// @Success 200 {object} gin.H{"success":true,"message":"History transactions fetched successfully","data":[]HistoryTransaction}
+// @Failure 400 {object} gin.H{"success":false,"message":"Invalid user ID"}
+// @Failure 401 {object} gin.H{"success":false,"message":"Unauthorized"}
+// @Failure 500 {object} gin.H{"success":false,"message":"Internal server error"}
+// @Router /history [get]
 func (tc *TransactionController) GetHistoryTransactions(ctx *gin.Context) {
 	userIDValue, exists := ctx.Get("userID")
 	if !exists {
@@ -239,4 +255,50 @@ func (tc *TransactionController) GetHistoryTransactions(ctx *gin.Context) {
 		"data":    histories,
 	})
 }
+
+
+func (tc *TransactionController) GetHistoryDetailById(ctx *gin.Context) {
+	userIDValue, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, models.Response{
+			Success: false,
+			Message: "Unauthorized",
+		})
+		return
+	}
+	userID, ok := userIDValue.(int64)
+	if !ok {
+		ctx.JSON(http.StatusBadRequest, models.Response{
+			Success: false,
+			Message: "Invalid user ID",
+		})
+		return
+	}
+
+	transactionID, err := strconv.ParseInt(ctx.Param("id"), 10, 64)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.Response{
+			Success: false,
+			Message: "Invalid transaction ID",
+		})
+		return
+	}
+
+	history, err := models.GetHistoryDetail(tc.DB, transactionID, userID)
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.Response{
+		Success: true,
+		Message: "Transaction detail fetched successfully",
+		Data: history,
+	})
+}
+
+
 
