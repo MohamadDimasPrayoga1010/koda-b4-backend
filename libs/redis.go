@@ -15,20 +15,13 @@ var Ctx = context.Background()
 func InitRedis() *redis.Client {
 	godotenv.Load()
 
-	host := os.Getenv("REDIS_HOST")
-	port := os.Getenv("REDIS_PORT")
+	url := os.Getenv("REDIS_URL")
 	password := os.Getenv("REDIS_PASSWORD")
-	db := os.Getenv("REDIS_DB")
-
-	addr := fmt.Sprintf("%s:%s", host, port)
-
-	dbIndex := 0
-	fmt.Sscanf(db, "%d", &dbIndex)
 
 	client := redis.NewClient(&redis.Options{
-		Addr:     addr,
-		Password: password,
-		DB:       dbIndex,
+		Addr:     url,       
+		Password: password,   
+		DB:       0,          
 	})
 
 	_, err := client.Ping(Ctx).Result()
@@ -36,6 +29,7 @@ func InitRedis() *redis.Client {
 		panic("Failed to connect to Redis: " + err.Error())
 	}
 
+	fmt.Println("Connected to Redis at", url)
 	RedisClient = client
 	return client
 }
