@@ -22,7 +22,7 @@ CREATE TABLE profile(
     address VARCHAR(250),
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now()
-)
+);
 
 CREATE TABLE forgot_password(
     id SERIAL PRIMARY KEY,
