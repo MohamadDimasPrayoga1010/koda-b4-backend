@@ -168,7 +168,6 @@ func GetTransactionByID(db *pgxpool.Pool, id string) (Transaction, error) {
 	return t, nil
 }
 
-
 type HistoryTransaction struct {
 	ID            int64     `json:"id"`
 	InvoiceNumber string    `json:"invoice_number"`
@@ -177,7 +176,6 @@ type HistoryTransaction struct {
 	Status        string    `json:"status"`
 	CreatedAt     time.Time `json:"created_at"`
 }
-
 
 func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month, page, limit int) ([]HistoryTransaction, error) {
 	ctx := context.Background()
@@ -228,4 +226,119 @@ func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month
 	}
 
 	return histories, nil
+}
+
+
+type HistoryDetail struct {
+	ID             int64                   `json:"id"`
+	InvoiceNumber  string                  `json:"invoice"`
+	CustName       string                  `json:"cust_name"`
+	CustPhone      string                  `json:"cust_phone"`
+	CustEmail      string                  `json:"cust_email"`
+	CustAddress    string                  `json:"cust_address"`
+	PaymentMethod  string                  `json:"payment_method"`
+	DeliveryMethod string                  `json:"delivery_method"`
+	Status         string                  `json:"status"`
+	Total          float64                 `json:"total"`
+	CreatedAt      string                  `json:"created_at"`
+	Items          []TransactionItemDetail `json:"items"`
+}
+
+type TransactionItemDetail struct {
+	ID            int64   `json:"id"`
+	Name          string  `json:"name"`
+	Image         string  `json:"image"`
+	Size          *string `json:"size,omitempty"`
+	BasePrice     float64 `json:"base_price"`
+	DiscountPrice float64 `json:"discount_price"`
+	Variant       *string `json:"variant,omitempty"`
+	Quantity      int     `json:"quantity"`
+	Subtotal      float64 `json:"subtotal"`
+}
+
+func GetHistoryDetail(db *pgxpool.Pool, transactionID, userID int64) (*HistoryDetail, error) {
+	ctx := context.Background()
+
+	queryHeader := `
+	SELECT 
+		t.id,
+		t.invoice_number,
+		t.fullname,
+		t.phone,
+		t.email,
+		t.address,
+		pm.name AS payment_method,
+		s.name AS delivery_method,
+		t.status,
+		t.total,
+		TO_CHAR(t.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
+	FROM transactions t
+	LEFT JOIN payment_methods pm ON pm.id = t.payment_method_id
+	LEFT JOIN shippings s ON s.id = t.shipping_id
+	WHERE t.id = $1 AND t.user_id = $2
+	`
+	var header HistoryDetail
+	err := db.QueryRow(ctx, queryHeader, transactionID, userID).Scan(
+		&header.ID,
+		&header.InvoiceNumber,
+		&header.CustName,
+		&header.CustPhone,
+		&header.CustEmail,
+		&header.CustAddress,
+		&header.PaymentMethod,
+		&header.DeliveryMethod,
+		&header.Status,
+		&header.Total,
+		&header.CreatedAt,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	queryItems := `
+	SELECT 
+		ti.id,
+		p.title AS name,
+		COALESCE((SELECT pi.image FROM product_images pi WHERE pi.product_id = p.id LIMIT 1), '') AS image,
+		sz.name AS size,
+		p.base_price,
+		0 AS discount_price,
+		v.name AS variant,
+		ti.quantity,
+		ti.subtotal
+	FROM transaction_items ti
+	LEFT JOIN products p ON p.id = ti.product_id
+	LEFT JOIN sizes sz ON sz.id = ti.size_id
+	LEFT JOIN variants v ON v.id = ti.variant_id
+	WHERE ti.transaction_id = $1
+	`
+
+	rows, err := db.Query(ctx, queryItems, transactionID)
+	if err != nil {
+		return nil, err
+	}
+
+	defer rows.Close()
+
+	for rows.Next() {
+		var item TransactionItemDetail
+		err := rows.Scan(
+			&item.ID,
+			&item.Name,
+			&item.Image,
+			&item.Size,
+			&item.BasePrice,
+			&item.DiscountPrice,
+			&item.Variant,
+			&item.Quantity,
+			&item.Subtotal,
+		)
+		if err != nil {
+			return nil, err
+		}
+		header.Items = append(header.Items, item)
+	}
+
+	return &header, nil
+
 }
