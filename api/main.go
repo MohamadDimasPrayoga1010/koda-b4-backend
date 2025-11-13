@@ -23,6 +23,7 @@ func initRouter() *gin.Engine {
 
 	pg := configs.InitDbConfig()
 	libs.InitRedis()
+	router.Use(gin.Recovery())
 
 
 	router = routers.InitRouter(pg)

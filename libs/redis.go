@@ -2,6 +2,7 @@ package libs
 
 import (
 	"context"
+	"crypto/tls"
 	"fmt"
 	"os"
 
@@ -60,6 +61,7 @@ func InitRedis() *redis.Client {
 		Addr:     redisURL,
 		Password: password,
 		DB:       0,
+		TLSConfig: &tls.Config{},
 	})
 
 	_, err := client.Ping(Ctx).Result()
