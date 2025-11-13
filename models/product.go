@@ -468,7 +468,7 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 		ShippingName:      shippingName,
 		InvoiceNumber:     invoice,
 		Total:             total,
-		Status:            "Pending",
+		Status:            "OnProgress",
 		CreatedAt:         createdAt,
 		UpdatedAt:         updatedAt,
 		Items:             items,
