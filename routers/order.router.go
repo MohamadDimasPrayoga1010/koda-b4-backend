@@ -20,4 +20,5 @@ func TransactionRoutes(r *gin.Engine, pg *pgxpool.Pool) {
 		admin.DELETE("/transactions/:id", tc.DeleteTransaction)
 	}
 	r.GET("/history", middlewares.AuthMiddleware(""), tc.GetHistoryTransactions)
+	r.GET("/history/:id", middlewares.AuthMiddleware(""), tc.GetHistoryDetailById)
 }
