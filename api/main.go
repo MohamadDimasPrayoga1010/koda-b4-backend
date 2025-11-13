@@ -14,20 +14,16 @@ import (
 
 var router *gin.Engine
 
-
 func initRouter() *gin.Engine {
 	if router != nil {
 		return router
 	}
 
-
 	pg := configs.InitDbConfig()
 	libs.InitRedis()
-	router.Use(gin.Recovery())
-
 
 	router = routers.InitRouter(pg)
-
+	router.Use(gin.Recovery())
 
 	docs.SwaggerInfo.BasePath = "/"
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
