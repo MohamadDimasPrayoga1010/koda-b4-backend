@@ -14,7 +14,8 @@ import (
 // @title Coffee Shop API
 // @version 1.0
 // @description API for Coffee Shop Application
-// @host localhost:8085
+// @host coffeeder-backend.vercel.app
+// @schemes https
 // @BasePath /
 func main() {
 		godotenv.Load()
