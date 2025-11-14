@@ -135,22 +135,6 @@ definitions:
     - email
     - password
     type: object
-  models.UserRegister:
-    properties:
-      email:
-        type: string
-      fullname:
-        type: string
-      password:
-        minLength: 6
-        type: string
-      role:
-        type: string
-    required:
-    - email
-    - fullname
-    - password
-    type: object
   models.UserResponse:
     properties:
       created_at:
@@ -907,7 +891,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Send OTP to user's email
+      description: Generate OTP for user to forgot password
       parameters:
       - description: Email for forgot password
         in: body
@@ -930,7 +914,11 @@ paths:
           description: Not Found
           schema:
             $ref: '#/definitions/models.Response'
-      summary: Request OTP for forgot password
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
+      summary: Request password
       tags:
       - Auth
   /auth/login:
@@ -979,12 +967,12 @@ paths:
       description: Create a new user account. If role is "admin", response message
         will indicate admin registration success.
       parameters:
-      - description: User Register Payload
+      - description: Login Payload
         in: body
-        name: user
+        name: login
         required: true
         schema:
-          $ref: '#/definitions/models.UserRegister'
+          $ref: '#/definitions/models.UserLogin'
       produces:
       - application/json
       responses:
@@ -1016,7 +1004,7 @@ paths:
     patch:
       consumes:
       - application/json
-      description: Reset password using verified OTP token
+      description: Reset user password using OTP token
       parameters:
       - description: Reset password payload
         in: body
@@ -1039,6 +1027,10 @@ paths:
           description: Unauthorized
           schema:
             $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
+          schema:
+            $ref: '#/definitions/models.Response'
       summary: Reset password
       tags:
       - Auth
@@ -1046,9 +1038,9 @@ paths:
     post:
       consumes:
       - application/json
-      description: Verify OTP for password reset
+      description: Verify OTP sent to user's email
       parameters:
-      - description: Verify OTP payload
+      - description: OTP verification payload
         in: body
         name: body
         required: true

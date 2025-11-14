@@ -1074,7 +1074,7 @@ const docTemplate = `{
         },
         "/auth/forgot-password": {
             "post": {
-                "description": "Send OTP to user's email",
+                "description": "Generate OTP for user to forgot password",
                 "consumes": [
                     "application/json"
                 ],
@@ -1084,7 +1084,7 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Request OTP for forgot password",
+                "summary": "Request password",
                 "parameters": [
                     {
                         "description": "Email for forgot password",
@@ -1111,6 +1111,12 @@ const docTemplate = `{
                     },
                     "404": {
                         "description": "Not Found",
+                        "schema": {
+                            "$ref": "#/definitions/models.Response"
+                        }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
                         "schema": {
                             "$ref": "#/definitions/models.Response"
                         }
@@ -1197,12 +1203,12 @@ const docTemplate = `{
                 "summary": "Register a new user or admin",
                 "parameters": [
                     {
-                        "description": "User Register Payload",
-                        "name": "user",
+                        "description": "Login Payload",
+                        "name": "login",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.UserRegister"
+                            "$ref": "#/definitions/models.UserLogin"
                         }
                     }
                 ],
@@ -1248,7 +1254,7 @@ const docTemplate = `{
         },
         "/auth/reset-password": {
             "patch": {
-                "description": "Reset password using verified OTP token",
+                "description": "Reset user password using OTP token",
                 "consumes": [
                     "application/json"
                 ],
@@ -1288,13 +1294,19 @@ const docTemplate = `{
                         "schema": {
                             "$ref": "#/definitions/models.Response"
                         }
+                    },
+                    "500": {
+                        "description": "Internal Server Error",
+                        "schema": {
+                            "$ref": "#/definitions/models.Response"
+                        }
                     }
                 }
             }
         },
         "/auth/verify-otp": {
             "post": {
-                "description": "Verify OTP for password reset",
+                "description": "Verify OTP sent to user's email",
                 "consumes": [
                     "application/json"
                 ],
@@ -1307,7 +1319,7 @@ const docTemplate = `{
                 "summary": "Verify OTP",
                 "parameters": [
                     {
-                        "description": "Verify OTP payload",
+                        "description": "OTP verification payload",
                         "name": "body",
                         "in": "body",
                         "required": true,
@@ -2057,29 +2069,6 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "password": {
-                    "type": "string"
-                }
-            }
-        },
-        "models.UserRegister": {
-            "type": "object",
-            "required": [
-                "email",
-                "fullname",
-                "password"
-            ],
-            "properties": {
-                "email": {
-                    "type": "string"
-                },
-                "fullname": {
-                    "type": "string"
-                },
-                "password": {
-                    "type": "string",
-                    "minLength": 6
-                },
-                "role": {
                     "type": "string"
                 }
             }
