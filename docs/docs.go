@@ -1120,7 +1120,7 @@ const docTemplate = `{
         },
         "/auth/login": {
             "post": {
-                "description": "Login with email and password",
+                "description": "Login using email and password",
                 "consumes": [
                     "application/json"
                 ],
@@ -1184,7 +1184,7 @@ const docTemplate = `{
         },
         "/auth/register": {
             "post": {
-                "description": "Create a new user account",
+                "description": "Create a new user account. If role is \"admin\", response message will indicate admin registration success.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1194,7 +1194,7 @@ const docTemplate = `{
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Register a new user",
+                "summary": "Register a new user or admin",
                 "parameters": [
                     {
                         "description": "User Register Payload",
@@ -1208,7 +1208,7 @@ const docTemplate = `{
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "User or Admin registered successfully",
                         "schema": {
                             "allOf": [
                                 {
@@ -1226,19 +1226,19 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid request body or password too short",
                         "schema": {
                             "$ref": "#/definitions/models.Response"
                         }
                     },
                     "409": {
-                        "description": "Conflict",
+                        "description": "Email already registered",
                         "schema": {
                             "$ref": "#/definitions/models.Response"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/models.Response"
                         }
@@ -2087,6 +2087,9 @@ const docTemplate = `{
         "models.UserResponse": {
             "type": "object",
             "properties": {
+                "created_at": {
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
@@ -2100,6 +2103,9 @@ const docTemplate = `{
                     "type": "string"
                 },
                 "token": {
+                    "type": "string"
+                },
+                "updated_at": {
                     "type": "string"
                 }
             }

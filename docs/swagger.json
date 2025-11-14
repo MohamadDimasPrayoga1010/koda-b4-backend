@@ -1117,7 +1117,7 @@
         },
         "/auth/login": {
             "post": {
-                "description": "Login with email and password",
+                "description": "Login using email and password",
                 "consumes": [
                     "application/json"
                 ],
@@ -1181,7 +1181,7 @@
         },
         "/auth/register": {
             "post": {
-                "description": "Create a new user account",
+                "description": "Create a new user account. If role is \"admin\", response message will indicate admin registration success.",
                 "consumes": [
                     "application/json"
                 ],
@@ -1191,7 +1191,7 @@
                 "tags": [
                     "Auth"
                 ],
-                "summary": "Register a new user",
+                "summary": "Register a new user or admin",
                 "parameters": [
                     {
                         "description": "User Register Payload",
@@ -1205,7 +1205,7 @@
                 ],
                 "responses": {
                     "201": {
-                        "description": "Created",
+                        "description": "User or Admin registered successfully",
                         "schema": {
                             "allOf": [
                                 {
@@ -1223,19 +1223,19 @@
                         }
                     },
                     "400": {
-                        "description": "Bad Request",
+                        "description": "Invalid request body or password too short",
                         "schema": {
                             "$ref": "#/definitions/models.Response"
                         }
                     },
                     "409": {
-                        "description": "Conflict",
+                        "description": "Email already registered",
                         "schema": {
                             "$ref": "#/definitions/models.Response"
                         }
                     },
                     "500": {
-                        "description": "Internal Server Error",
+                        "description": "Internal server error",
                         "schema": {
                             "$ref": "#/definitions/models.Response"
                         }
@@ -2084,6 +2084,9 @@
         "models.UserResponse": {
             "type": "object",
             "properties": {
+                "created_at": {
+                    "type": "string"
+                },
                 "email": {
                     "type": "string"
                 },
@@ -2097,6 +2100,9 @@
                     "type": "string"
                 },
                 "token": {
+                    "type": "string"
+                },
+                "updated_at": {
                     "type": "string"
                 }
             }

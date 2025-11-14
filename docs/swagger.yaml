@@ -153,6 +153,8 @@ definitions:
     type: object
   models.UserResponse:
     properties:
+      created_at:
+        type: string
       email:
         type: string
       fullname:
@@ -162,6 +164,8 @@ definitions:
       role:
         type: string
       token:
+        type: string
+      updated_at:
         type: string
     type: object
   models.Variant:
@@ -933,7 +937,7 @@ paths:
     post:
       consumes:
       - application/json
-      description: Login with email and password
+      description: Login using email and password
       parameters:
       - description: Login Payload
         in: body
@@ -972,7 +976,8 @@ paths:
     post:
       consumes:
       - application/json
-      description: Create a new user account
+      description: Create a new user account. If role is "admin", response message
+        will indicate admin registration success.
       parameters:
       - description: User Register Payload
         in: body
@@ -984,7 +989,7 @@ paths:
       - application/json
       responses:
         "201":
-          description: Created
+          description: User or Admin registered successfully
           schema:
             allOf:
             - $ref: '#/definitions/models.Response'
@@ -993,18 +998,18 @@ paths:
                   $ref: '#/definitions/models.UserResponse'
               type: object
         "400":
-          description: Bad Request
+          description: Invalid request body or password too short
           schema:
             $ref: '#/definitions/models.Response'
         "409":
-          description: Conflict
+          description: Email already registered
           schema:
             $ref: '#/definitions/models.Response'
         "500":
-          description: Internal Server Error
+          description: Internal server error
           schema:
             $ref: '#/definitions/models.Response'
-      summary: Register a new user
+      summary: Register a new user or admin
       tags:
       - Auth
   /auth/reset-password:
