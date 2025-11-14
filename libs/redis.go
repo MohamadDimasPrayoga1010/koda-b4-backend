@@ -4,6 +4,7 @@ import (
 	"context"
 	"crypto/tls"
 	"fmt"
+	"log"
 	"os"
 
 	"github.com/redis/go-redis/v9"
@@ -57,12 +58,23 @@ func InitRedis() *redis.Client {
 		return nil
 	}
 
-	client := redis.NewClient(&redis.Options{
+	options := &redis.Options{
 		Addr:     redisURL,
 		Password: password,
 		DB:       0,
-		TLSConfig: &tls.Config{},
-	})
+	}
+
+	if os.Getenv("ENVIRONMENT") != "development" {
+		options.TLSConfig = &tls.Config{}
+	}
+
+	client := redis.NewClient(options)
+
+	if err := client.Ping(context.Background()).Err(); err != nil {
+		log.Fatalf("Redis connection failed: %v", err)
+	} else {
+		log.Println("Connected to Redis successfully!")
+	}
 
 	_, err := client.Ping(Ctx).Result()
 	if err != nil {
