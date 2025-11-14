@@ -1,8 +1,8 @@
 package controllers
 
 import (
+	"coffeeder-backend/models"
 	"context"
-	"main/models"
 	"net/http"
 
 	"strconv"
@@ -14,7 +14,6 @@ import (
 type TransactionController struct {
 	DB *pgxpool.Pool
 }
-
 
 // GetTransactions godoc
 // @Summary Get all transactions
@@ -189,7 +188,6 @@ func (tc *TransactionController) DeleteTransaction(ctx *gin.Context) {
 	})
 }
 
-
 // GetHistoryTransactions godoc
 // @Summary Get user transaction history
 // @Description Fetch transaction history for authenticated user. Supports filter by status, month, pagination, and limit.
@@ -221,7 +219,7 @@ func (tc *TransactionController) GetHistoryTransactions(ctx *gin.Context) {
 		return
 	}
 
-	monthStr := ctx.DefaultQuery("month", "0") 
+	monthStr := ctx.DefaultQuery("month", "0")
 	status := ctx.DefaultQuery("status", "OnProgress")
 	pageStr := ctx.DefaultQuery("page", "1")
 	limitStr := ctx.DefaultQuery("limit", "10")
@@ -251,7 +249,6 @@ func (tc *TransactionController) GetHistoryTransactions(ctx *gin.Context) {
 		"data":    histories,
 	})
 }
-
 
 func (tc *TransactionController) GetHistoryDetailById(ctx *gin.Context) {
 	userIDValue, exists := ctx.Get("userID")
@@ -292,9 +289,6 @@ func (tc *TransactionController) GetHistoryDetailById(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, models.Response{
 		Success: true,
 		Message: "Transaction detail fetched successfully",
-		Data: history,
+		Data:    history,
 	})
 }
-
-
-

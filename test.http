@@ -2,16 +2,46 @@
 ######          AUTH           #########
 ########################################
 
-### REGISTER USER / ADMIN
+### REGISTER USER (role otomatis "user")
 POST http://localhost:8085/auth/register
 Content-Type: application/json
 
 {
-  "fullname": "Admin Ganteng1",
-  "email": "admin100@mail.com",
+  "fullname": "User2",
+  "email": "user17@mail.com",
+  "password": "123456"
+}
+
+
+### REGISTER ADMIN (role wajib "admin")
+POST http://localhost:8085/auth/register
+Content-Type: application/json
+
+{
+  "fullname": "Admin test",
+  "email": "admintest22@mail.com",
   "password": "123456",
   "role": "admin"
 }
+
+### LOGIN USER
+POST http://localhost:8085/auth/login
+Content-Type: application/json
+
+{
+  "email": "user15@mail.com",
+  "password": "123456"
+}
+
+### LOGIN ADMIN
+POST http://localhost:8085/auth/login
+Content-Type: application/json
+
+{
+  "email": "admintest21@mail.com",
+  "password": "123456"
+}
+
 
 ### LOGIN
 POST http://localhost:8085/auth/login
@@ -182,7 +212,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzMsImVtYWlsI
 
 ### ambil semua data
 GET http://localhost:8085/admin/products/
-Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzUsImVtYWlsIjoiYWRtaW5AbWFpbC5jb20iLCJyb2xlIjoiYWRtaW4iLCJpc3MiOiJjb2ZmZWVzaG9wIiwiZXhwIjoxNzYzMTEyMzkwLCJpYXQiOjE3NjMwMjU5OTB9.h4tYZhqP08n_mthhUzIsz2YXp2KE3ONhspI9RmVv9qc
+Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpZCI6MzcsImVtYWlsIjoidXNlcjJAbWFpbC5jb20iLCJyb2xlIjoidXNlciIsImlzcyI6ImNvZmZlZXNob3AiLCJleHAiOjE3NjMyMDIzMzEsImlhdCI6MTc2MzExNTkzMX0.uWKunmyOsyh3YBqNxjAn4pMZM26Fm3WTJsElbvQfpp0
 
 ### ambil semua data
 GET http://localhost:8085/admin/products?page=5

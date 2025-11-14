@@ -15,23 +15,25 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-type User struct{
-	ID        int64     `json:"id" db:"id"`
-	Fullname  string    `json:"fullname" db:"fullname"`
-	Email     string    `json:"email" db:"email"`
-	Password  string    `json:"password" db:"password"`
-	Role      string    `json:"role" db:"role"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
-}
 
-type UserResponse struct {
-	ID       int64  `json:"id"`
-	Fullname string `json:"fullname"`
-	Email    string `json:"email"`
-	Role     string `json:"role"`
-	Token    string `json:"token,omitempty"`
-}
+// type User struct {
+//     ID        int       `json:"id"`
+//     Fullname  string    `json:"fullname" binding:"required"`
+//     Email     string    `json:"email" binding:"required,email"`
+//     Password  string    `json:"password" binding:"required,min=6"`
+//     Role      string    `json:"role"`
+//     CreatedAt time.Time `json:"created_at"`
+//     UpdatedAt time.Time `json:"updated_at"`
+// }
+
+
+// type UserResponse struct {
+// 	ID       int64  `json:"id"`
+// 	Fullname string `json:"fullname"`
+// 	Email    string `json:"email"`
+// 	Role     string `json:"role"`
+// 	Token    string `json:"token,omitempty"`
+// }
 
 
 type ProfileRequest struct {

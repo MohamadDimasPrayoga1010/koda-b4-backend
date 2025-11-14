@@ -1,10 +1,10 @@
 package controllers
 
 import (
+	"coffeeder-backend/libs"
+	"coffeeder-backend/models"
 	"context"
 	"fmt"
-	"main/libs"
-	"main/models"
 	"net/http"
 	"strconv"
 	"strings"
@@ -42,7 +42,6 @@ func (uc *UserController) GetUsersList(ctx *gin.Context) {
 	limit, _ := strconv.Atoi(limitStr)
 	offset := (page - 1) * limit
 
-	
 	allowedSortBy := map[string]bool{
 		"fullname":   true,
 		"email":      true,
@@ -55,7 +54,6 @@ func (uc *UserController) GetUsersList(ctx *gin.Context) {
 	if sortOrder != "asc" && sortOrder != "desc" {
 		sortOrder = "desc"
 	}
-
 
 	baseQuery := `
 		SELECT 
@@ -76,7 +74,6 @@ func (uc *UserController) GetUsersList(ctx *gin.Context) {
 		argIndex++
 	}
 
-	
 	orderClause := " ORDER BY u." + sortBy + " " + sortOrder
 
 	limitClause := " LIMIT $" + strconv.Itoa(argIndex) + " OFFSET $" + strconv.Itoa(argIndex+1)
@@ -105,7 +102,7 @@ func (uc *UserController) GetUsersList(ctx *gin.Context) {
 			&u.CreatedAt, &u.UpdatedAt,
 		)
 		if err != nil {
-			continue 
+			continue
 		}
 		u.Profile = &p
 		users = append(users, u)
@@ -123,7 +120,6 @@ func (uc *UserController) GetUsersList(ctx *gin.Context) {
 		},
 	})
 }
-
 
 // GetUserByID godoc
 // @Summary Get user by ID
@@ -174,8 +170,6 @@ func (uc *UserController) GetUserByID(ctx *gin.Context) {
 	})
 }
 
-
-
 // AddUser godoc
 // @Summary Create a new user
 // @Description Menambahkan user baru beserta profile dengan upload gambar
@@ -221,7 +215,7 @@ func (auc *UserController) AddUser(ctx *gin.Context) {
 	var imagePath string
 	file, err := ctx.FormFile("image")
 	if err == nil {
-		const maxSize = 2 << 20 
+		const maxSize = 2 << 20
 		if file.Size > maxSize {
 			ctx.JSON(400, models.Response{
 				Success: false,
@@ -322,8 +316,6 @@ func (auc *UserController) AddUser(ctx *gin.Context) {
 	})
 }
 
-
-
 // EditUser godoc
 // @Summary Update user data
 // @Description Mengupdate data user dan profil berdasarkan ID (support upload image)
@@ -370,7 +362,7 @@ func (auc *UserController) EditUser(ctx *gin.Context) {
 	var imagePath string
 	file, err := ctx.FormFile("image")
 	if err == nil {
-		const maxSize = 2 << 20 
+		const maxSize = 2 << 20
 		if file.Size > maxSize {
 			ctx.JSON(400, models.Response{
 				Success: false,
@@ -502,8 +494,6 @@ func (auc *UserController) EditUser(ctx *gin.Context) {
 	})
 }
 
-
-
 // DeleteUser godoc
 // @Summary Delete a user
 // @Description Menghapus user beserta profile berdasarkan ID
@@ -516,7 +506,6 @@ func (auc *UserController) EditUser(ctx *gin.Context) {
 // @Router /admin/users/{id} [delete]
 func (uc *UserController) DeleteUser(ctx *gin.Context) {
 	id := ctx.Param("id")
-
 
 	_, err := uc.DB.Exec(context.Background(), `DELETE FROM profile WHERE user_id=$1`, id)
 	if err != nil {
@@ -545,7 +534,6 @@ func (uc *UserController) DeleteUser(ctx *gin.Context) {
 	})
 }
 
-
 // UpdateProfile godoc
 // @Summary      Update user profile
 // @Description  Update phone, address, and profile image
@@ -561,24 +549,24 @@ func (uc *UserController) DeleteUser(ctx *gin.Context) {
 // @Failure      401 {object} map[string]string
 // @Router       /profile [patch]
 func (uc *UserController) UpdateProfile(ctx *gin.Context) {
-    userIDValue, exists := ctx.Get("userID")
-    if !exists {
-        ctx.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "User not authenticated"})
-        return
-    }
-    userID := userIDValue.(int64)
+	userIDValue, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "User not authenticated"})
+		return
+	}
+	userID := userIDValue.(int64)
 
-    phone := ctx.PostForm("phone")
-    address := ctx.PostForm("address")
-    file, _ := ctx.FormFile("image")
+	phone := ctx.PostForm("phone")
+	address := ctx.PostForm("address")
+	file, _ := ctx.FormFile("image")
 
-    profile, err := models.UpdateProfile(uc.DB, userID, phone, address, file)
-    if err != nil {
-        ctx.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
-        return
-    }
+	profile, err := models.UpdateProfile(uc.DB, userID, phone, address, file)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
 
-    ctx.JSON(http.StatusOK, gin.H{"status": "success", "data": profile})
+	ctx.JSON(http.StatusOK, gin.H{"status": "success", "data": profile})
 }
 
 // GetProfile godoc
@@ -592,28 +580,23 @@ func (uc *UserController) UpdateProfile(ctx *gin.Context) {
 // @Router /profile [get]
 // @Security BearerAuth
 func (uc *UserController) GetProfile(ctx *gin.Context) {
-    userIDValue, exists := ctx.Get("userID")
-    if !exists {
-        ctx.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "User not authenticated"})
-        return
-    }
-    userID := userIDValue.(int64)
+	userIDValue, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, gin.H{"status": "error", "message": "User not authenticated"})
+		return
+	}
+	userID := userIDValue.(int64)
 
-    var profile models.ProfileUser
-    err := uc.DB.QueryRow(ctx, `
+	var profile models.ProfileUser
+	err := uc.DB.QueryRow(ctx, `
         SELECT id, phone, address, image, user_id, created_at, updated_at
         FROM profile WHERE user_id=$1
     `, userID).Scan(&profile.ID, &profile.Phone, &profile.Address, &profile.Image, &profile.UserID, &profile.CreatedAt, &profile.UpdatedAt)
 
-    if err != nil {
-        ctx.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
-        return
-    }
+	if err != nil {
+		ctx.JSON(http.StatusInternalServerError, gin.H{"status": "error", "message": err.Error()})
+		return
+	}
 
-    ctx.JSON(http.StatusOK, gin.H{"status": "success", "data": profile})
+	ctx.JSON(http.StatusOK, gin.H{"status": "success", "data": profile})
 }
-
-
-
-
-

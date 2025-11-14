@@ -1,10 +1,10 @@
 package handler
 
 import (
-	"main/configs"
-	"main/docs"
-	"main/libs"
-	"main/routers"
+	"coffeeder-backend/configs"
+	_ "coffeeder-backend/docs"
+	"coffeeder-backend/libs"
+	"coffeeder-backend/routers"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -25,7 +25,6 @@ func initRouter() *gin.Engine {
 	router = routers.InitRouter(pg)
 	router.Use(gin.Recovery())
 
-	docs.SwaggerInfo.BasePath = "/"
 	router.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
 
 	return router

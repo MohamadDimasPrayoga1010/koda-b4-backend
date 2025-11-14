@@ -1,8 +1,8 @@
 package routers
 
 import (
-	"main/controllers"
-	"main/middlewares"
+	"coffeeder-backend/controllers"
+	"coffeeder-backend/middlewares"
 
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"

@@ -1,10 +1,9 @@
 package middlewares
 
 import (
+	"coffeeder-backend/libs"
 	"os"
 	"strings"
-
-	"main/libs"
 
 	"github.com/gin-gonic/gin"
 	"github.com/golang-jwt/jwt/v5"

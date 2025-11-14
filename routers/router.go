@@ -1,8 +1,8 @@
 package routers
 
 import (
-	"main/libs"
-	"main/models"
+	"coffeeder-backend/libs"
+	"coffeeder-backend/models"
 	"net/http"
 
 	"github.com/gin-gonic/gin"

@@ -1,10 +1,10 @@
 package main
 
 import (
-	"main/configs"
-	"main/docs"
-	"main/libs"
-	"main/routers"
+	"coffeeder-backend/configs"
+	_ "coffeeder-backend/docs" 
+	"coffeeder-backend/libs"
+	"coffeeder-backend/routers"
 
 	"github.com/joho/godotenv"
 	swaggerFiles "github.com/swaggo/files"
@@ -18,13 +18,12 @@ import (
 // @schemes https
 // @BasePath /
 func main() {
-		godotenv.Load()
+	godotenv.Load()
 	pg := configs.InitDbConfig()
 	r := routers.InitRouter(pg)
 	libs.InitRedis()
 
-	docs.SwaggerInfo.BasePath = "/"
 	r.GET("/swagger/*any", ginSwagger.WrapHandler(swaggerFiles.Handler))
-	
+
 	r.Run(":8085")
 }

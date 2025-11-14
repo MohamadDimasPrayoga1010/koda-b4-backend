@@ -1,8 +1,8 @@
 package controllers
 
 import (
+	"coffeeder-backend/models"
 	"context"
-	"main/models"
 	"strconv"
 
 	"github.com/gin-gonic/gin"
