@@ -19,7 +19,7 @@ type UserPayload struct {
 
 func GenerateToken(id int, email, role string) (string, error) {
 	secretKey := os.Getenv("JWT_SECRET")
-	claims := UserPayload{
+	claims := &UserPayload{
 		Id:    id,
 		Email: email,
 		Role:  role,
@@ -29,6 +29,7 @@ func GenerateToken(id int, email, role string) (string, error) {
 			Issuer:    "coffeeshop",
 		},
 	}
+
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(secretKey))
 }
@@ -37,14 +38,18 @@ func JWTMiddleware() gin.HandlerFunc {
 	return func(ctx *gin.Context) {
 		authHeader := ctx.GetHeader("Authorization")
 		if authHeader == "" {
-			ctx.JSON(http.StatusUnauthorized, gin.H{"message": "authorization header missing", "success": false})
+			ctx.JSON(http.StatusUnauthorized, gin.H{
+				"message": "authorization header missing", 
+				"success": false})
 			ctx.Abort()
 			return
 		}
 
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || parts[0] != "Bearer" {
-			ctx.JSON(http.StatusUnauthorized, gin.H{"message": "invalid authorization header", "success": false})
+			ctx.JSON(http.StatusUnauthorized, gin.H{
+				"message": "invalid authorization header", 
+				"success": false})
 			ctx.Abort()
 			return
 		}
@@ -52,7 +57,12 @@ func JWTMiddleware() gin.HandlerFunc {
 		tokenStr := parts[1]
 		secretKey := os.Getenv("JWT_SECRET")
 
-		token, err := jwt.ParseWithClaims(tokenStr, &UserPayload{}, func(token *jwt.Token) (interface{}, error) {
+		claims := &UserPayload{}
+
+		token, err := jwt.ParseWithClaims(tokenStr, claims, func(token *jwt.Token) (interface{}, error) {
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, jwt.ErrInvalidKeyType
+			}
 			return []byte(secretKey), nil
 		})
 
@@ -62,15 +72,10 @@ func JWTMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		claims, ok := token.Claims.(UserPayload)
-		if !ok {
-			ctx.JSON(http.StatusUnauthorized, gin.H{"message": "invalid token claims", "success": false})
-			ctx.Abort()
-			return
-		}
-
 		ctx.Set("user_id", claims.Id)
+		ctx.Set("user_email", claims.Email)
 		ctx.Set("user_role", claims.Role)
+
 		ctx.Next()
 	}
 }
