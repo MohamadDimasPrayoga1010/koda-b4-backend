@@ -115,7 +115,7 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
         if !contains(allowedExts, ext) {
             ctx.JSON(400, models.Response{
                 Success: false,
-               Message: "Invalid file type(only png and jpeg): " + file.Filename,
+               Message: "Invalid file type(only png, jpg, jpeg): " + file.Filename,
             })
             return
         }
@@ -178,6 +178,7 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 // @Failure 500 {object} models.Response
 // @Router /admin/products [get]
 func (pc *ProductController) GetProducts(ctx *gin.Context) {
+
 	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "10"))
 	search := ctx.Query("search")
@@ -205,7 +206,7 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 
 	products, err := models.GetProducts(pc.DB, page, limit, search, sortBy, order)
 	if err != nil {
-		ctx.JSON(500, models.Response{
+		ctx.JSON(http.StatusInternalServerError, models.Response{
 			Success: false,
 			Message: "Failed to fetch products",
 			Data:    err.Error(),
@@ -216,7 +217,7 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 	dataJSON, _ := json.Marshal(products)
 	libs.RedisClient.Set(libs.Ctx, cacheKey, dataJSON, 10*time.Minute)
 
-	ctx.JSON(200, models.Response{
+	ctx.JSON(http.StatusOK, models.Response{
 		Success: true,
 		Message: "Products fetched successfully",
 		Data: gin.H{
@@ -228,17 +229,19 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 }
 
 
+
 // GetProductByID godoc
 // @Summary Get a product by ID
-// @Description Mengambil product berdasarkan ID
+// @Description Get detailed information of a product, including its variants, sizes, and images.
 // @Tags Products
-// @Accept json
-// @Produce json
+// @Accept  json
+// @Produce  json
 // @Param id path int true "Product ID"
-// @Success 200 {object} models.Response
-// @Failure 404 {object} models.Response
-// @Failure 500 {object} models.Response
-// @Router /admin/products/{id} [get]
+// @Success 200 {object} models.Response{data=models.ProductResponse} "Product fetched successfully"
+// @Failure 400 {object} models.Response "Invalid product ID"
+// @Failure 404 {object} models.Response "Product not found"
+// @Failure 500 {object} models.Response "Internal server error"
+// @Router /products/{id} [get]
 func (pc *ProductController) GetProductByID(ctx *gin.Context) {
 	idParam := ctx.Param("id")
 	productID, err := strconv.ParseInt(idParam, 10, 64)
@@ -251,17 +254,7 @@ func (pc *ProductController) GetProductByID(ctx *gin.Context) {
 		return
 	}
 
-	query := `
-		SELECT id, title, description, base_price, stock, category_id, variant_id, created_at
-		FROM products
-		WHERE id = $1
-	`
-
-	var p models.ProductResponse
-	err = pc.DB.QueryRow(context.Background(), query, productID).
-		Scan(&p.ID, &p.Title, &p.Description, &p.BasePrice, &p.Stock,
-			&p.CategoryID, &p.VariantID, &p.CreatedAt)
-
+	product, err := models.GetProductByID(pc.DB, productID)
 	if err != nil {
 		ctx.JSON(404, models.Response{
 			Success: false,
@@ -271,96 +264,49 @@ func (pc *ProductController) GetProductByID(ctx *gin.Context) {
 		return
 	}
 
-	imgRows, err := pc.DB.Query(context.Background(),
-		`SELECT image, updated_at, deleted_at FROM product_images WHERE product_id=$1 AND deleted_at IS NULL`, p.ID)
-	if err == nil {
-		for imgRows.Next() {
-			var img models.ProductImage
-			img.ProductID = p.ID
-			if err := imgRows.Scan(&img.Image, &img.UpdatedAt, &img.DeletedAt); err == nil {
-				p.Images = append(p.Images, img)
-			}
-		}
-		imgRows.Close()
-	}
-
-	sizeRows, err := pc.DB.Query(context.Background(),
-		`SELECT s.id, s.name, s.additional_price
-		 FROM sizes s
-		 JOIN product_sizes ps ON ps.size_id = s.id
-		 WHERE ps.product_id = $1`,
-		p.ID)
-	if err == nil {
-		for sizeRows.Next() {
-			var s models.Size
-			if err := sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice); err == nil {
-				p.Sizes = append(p.Sizes, s)
-			}
-		}
-		sizeRows.Close()
-	}
-
 	ctx.JSON(200, models.Response{
 		Success: true,
 		Message: "Product fetched successfully",
-		Data:    p,
+		Data:    product,
 	})
 }
 
+
 // UpdateProduct godoc
-// @Summary Update product
-// @Description Update product data by ID, including multiple sizes and images
+// @Summary Update a product
+// @Description Update product details including title, description, price, stock, category, variants, sizes, and images
 // @Tags Products
 // @Accept multipart/form-data
 // @Produce json
 // @Param id path int true "Product ID"
 // @Param title formData string true "Product title"
 // @Param description formData string false "Product description"
-// @Param base_price formData number true "Base price of the product"
-// @Param stock formData int true "Stock quantity"
-// @Param category_id formData int false "Category ID"
-// @Param variant_id formData int false "Variant ID"
-// @Param sizes formData int false "List of size IDs (send multiple 'sizes' params for multiple sizes)"
-// @Param images formData file false "Product images (send multiple 'images' files for multiple uploads)"
-// @Success 200 {object} models.Response "Product updated successfully"
-// @Failure 400 {object} models.Response "Invalid request body"
-// @Failure 404 {object} models.Response "Product not found"
+// @Param base_price formData number true "Product base price"
+// @Param stock formData int true "Product stock"
+// @Param category_id formData int true "Category ID"
+// @Param variant_id formData []int false "Variant IDs (array)"
+// @Param sizes formData []int false "Size IDs (array)"
+// @Param images formData file false "Product images"
+// @Success 200 {object} models.Response{data=models.ProductResponse} "Product updated successfully"
+// @Failure 400 {object} models.Response "Invalid request or product ID"
+// @Failure 500 {object} models.Response "Failed to update product"
 // @Router /admin/products/{id} [patch]
 func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
-	productID := ctx.Param("id")
+	idParam := ctx.Param("id")
+	productID, err := strconv.ParseInt(idParam, 10, 64)
+	if err != nil {
+		ctx.JSON(400, models.Response{
+			Success: false, 
+			Message: "Invalid product ID"})
+		return
+	}
 
 	var req models.ProductRequest
 	if err := ctx.ShouldBind(&req); err != nil {
 		ctx.JSON(400, models.Response{
-			Success: false,
-			Message: "Invalid request body",
-			Data:    err.Error(),
-		})
-		return
-	}
-
-	query := `
-		UPDATE products
-		SET title = $1, description = $2, base_price = $3, stock = $4,
-			category_id = $5, variant_id = $6, updated_at = NOW()
-		WHERE id = $7
-		RETURNING id, title, description, base_price, stock, category_id, variant_id, created_at, updated_at
-	`
-	var product models.ProductResponse
-	err := pc.DB.QueryRow(context.Background(), query,
-		req.Title, req.Description, req.BasePrice, req.Stock,
-		req.CategoryID, req.VariantID, productID,
-	).Scan(
-		&product.ID, &product.Title, &product.Description,
-		&product.BasePrice, &product.Stock,
-		&product.CategoryID, &product.VariantID,
-		&product.CreatedAt, &product.UpdatedAt,
-	)
-	if err != nil {
-		ctx.JSON(500, models.Response{
-			Success: false,
-			Message: "Failed to update product",
-			Data:    err.Error(),
+			Success: false, 
+			Message: "Invalid request body", 
+			Data: err.Error(),
 		})
 		return
 	}
@@ -368,41 +314,58 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 	uploadDir := "./uploads/products"
 	os.MkdirAll(uploadDir, os.ModePerm)
 
-	pc.DB.Exec(context.Background(), `DELETE FROM product_images WHERE product_id = $1`, product.ID)
+	savedFiles := []string{}
+	maxSize := int64(2 * 1024 * 1024)
+	allowedExts := []string{".jpg", ".jpeg", ".png"}
+
+	contains := func(arr []string, s string) bool {
+		for _, v := range arr {
+			if v == s {
+				return true
+			}
+		}
+		return false
+	}
 
 	for _, file := range req.Images {
+		if file.Size > maxSize {
+			ctx.JSON(400, models.Response{
+				Success: false, 
+				Message: "File too large(max 2mb): " + file.Filename,
+			})
+			return
+		}
+
 		ext := strings.ToLower(filepath.Ext(file.Filename))
+		if !contains(allowedExts, ext) {
+			ctx.JSON(400, models.Response{
+				Success: false, 
+				Message: "Invalid file type(only png, jpg, jpeg): " + file.Filename})
+			return
+		}
+
 		filename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), strings.TrimSuffix(file.Filename, ext), ext)
 		fullPath := filepath.Join(uploadDir, filename)
-
 		if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
 			continue
 		}
-
-		pc.DB.Exec(context.Background(),
-			`INSERT INTO product_images (product_id, image) VALUES ($1, $2)`,
-			product.ID, filename,
-		)
-
-		product.Images = append(product.Images, models.ProductImage{
-			ProductID: product.ID,
-			Image:     filename,
-			UpdatedAt: time.Now(),
-		})
+		savedFiles = append(savedFiles, filename)
 	}
 
-	pc.DB.Exec(context.Background(), `DELETE FROM product_sizes WHERE product_id = $1`, product.ID)
-	for _, sizeID := range req.Sizes {
-		pc.DB.Exec(context.Background(),
-			`INSERT INTO product_sizes (product_id, size_id) VALUES ($1, $2)`,
-			product.ID, sizeID,
-		)
+	product, err := models.UpdateProduct(pc.DB, productID, req, savedFiles)
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false, 
+			Message: "Failed to update product", 
+			Data: err.Error(),
+		})
+		return
 	}
 
 	ctx.JSON(200, models.Response{
-		Success: true,
-		Message: "Product updated successfully",
-		Data:    product,
+		Success: true, 
+		Message: "Product updated successfully", 
+		Data: product,
 	})
 }
 
