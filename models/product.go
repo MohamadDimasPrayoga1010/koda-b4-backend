@@ -3,6 +3,7 @@ package models
 import (
 	"context"
 	"errors"
+	"fmt"
 	"mime/multipart"
 	"strconv"
 	"time"
@@ -18,7 +19,7 @@ type Product struct {
 	BasePrice   float64        `json:"base_price"`
 	Stock       int            `json:"stock"`
 	CategoryID  int64          `json:"category_id"`
-	VariantID   int64          `json:"variant_id"`
+	VariantIDs  []int64        `json:"variant_ids"`
 	CreatedAt   time.Time      `json:"created_at"`
 	UpdatedAt   time.Time      `json:"updated_at"`
 	DeletedAt   *time.Time     `json:"deleted_at,omitempty"`
@@ -27,18 +28,19 @@ type Product struct {
 }
 
 type ProductResponse struct {
-	ID          int64          `json:"id"`
-	Title       string         `json:"title"`
-	Description string         `json:"description"`
-	BasePrice   float64        `json:"base_price"`
-	Stock       int            `json:"stock"`
-	CategoryID  int64          `json:"category_id"`
-	VariantID   int64          `json:"variant_id"`
-	UpdatedAt   time.Time      `json:"updated_at"`
-	CreatedAt   time.Time      `json:"created_at"`
-	Images      []ProductImage `json:"images,omitempty"`
-	Sizes       []Size         `json:"sizes,omitempty"`
+    ID          int64          `json:"id"`
+    Title       string         `json:"title"`
+    Description string         `json:"description"`
+    BasePrice   float64        `json:"base_price"`
+    Stock       int            `json:"stock"`
+    CategoryID  int64          `json:"category_id"`
+    Variants    []Variant      `json:"variants"`  
+    CreatedAt   time.Time      `json:"created_at"`
+    UpdatedAt   time.Time      `json:"updated_at"`
+    Images      []ProductImage `json:"images,omitempty"`
+    Sizes       []Size         `json:"sizes,omitempty"`
 }
+
 
 type ProductImage struct {
 	ProductID int64      `json:"product_id"`
@@ -49,20 +51,222 @@ type ProductImage struct {
 
 type Size struct {
 	ID              int64   `json:"id"`
-	Name            string  `json:"name" form:"name"`
-	AdditionalPrice float64 `json:"additional_price" form:"additional_price"`
+	Name            string  `json:"name"`
+	AdditionalPrice float64 `json:"additional_price"`
 }
+
+type Variant struct {
+    ID              int64  `json:"id"`
+    Name            string `json:"name"`
+    AdditionalPrice int64  `json:"additional_price"`
+}
+
 
 type ProductRequest struct {
 	Title       string                  `form:"title" binding:"required"`
 	Description string                  `form:"description"`
 	BasePrice   float64                 `form:"base_price" binding:"required"`
 	Stock       int                     `form:"stock" binding:"required"`
-	CategoryID  int64                   `form:"category_id"`
-	VariantID   int64                   `form:"variant_id"`
-	Sizes       []int64                 `form:"sizes"`
-	Images      []*multipart.FileHeader `form:"images"`
+	CategoryID  int64                   `form:"category_id" binding:"required"`
+	VariantID  []int64                 `form:"variant_id"` 
+	Sizes       []int64                 `form:"sizes"`       
+	Images      []*multipart.FileHeader `form:"images"`      
 }
+
+func CreateProduct(db *pgxpool.Pool, req ProductRequest, imageFiles []string) (ProductResponse, error) {
+    ctx := context.Background()
+    var product ProductResponse
+
+    var exists bool
+    err := db.QueryRow(ctx, "SELECT EXISTS(SELECT 1 FROM products WHERE title=$1)", req.Title).Scan(&exists)
+    if err != nil {
+        return product, err
+    }
+    if exists {
+        return product, fmt.Errorf("product with title '%s' already exists", req.Title)
+    }
+
+    insertQuery := `
+        INSERT INTO products (title, description, base_price, stock, category_id)
+        VALUES ($1, $2, $3, $4, $5)
+        RETURNING id, created_at, updated_at
+    `
+    err = db.QueryRow(ctx, insertQuery,
+        req.Title,
+        req.Description,
+        req.BasePrice,
+        req.Stock,
+        req.CategoryID,
+    ).Scan(&product.ID, &product.CreatedAt, &product.UpdatedAt)
+    if err != nil {
+        return product, err
+    }
+
+    product.Title = req.Title
+    product.Description = req.Description
+    product.BasePrice = req.BasePrice
+    product.Stock = req.Stock
+    product.CategoryID = req.CategoryID
+
+   if len(req.VariantID) > 0 {
+    for _, vID := range req.VariantID {
+        _, err := db.Exec(ctx,
+            `INSERT INTO product_variants (product_id, variant_id) VALUES ($1, $2)`,
+            product.ID, vID,
+        )
+        if err != nil {
+            return product, err
+        }
+    }
+
+    rows, err := db.Query(ctx,
+        `SELECT id, name, additional_price 
+         FROM variants 
+         WHERE id = ANY($1)`, req.VariantID)
+    if err != nil {
+        return product, err
+    }
+    defer rows.Close()
+
+    for rows.Next() {
+        var v Variant
+        err := rows.Scan(&v.ID, &v.Name, &v.AdditionalPrice)
+        if err == nil {
+            product.Variants = append(product.Variants, v)
+        }
+    }
+}
+
+    if len(req.Sizes) > 0 {
+        for _, sizeID := range req.Sizes {
+            _, err := db.Exec(ctx,
+                `INSERT INTO product_sizes (product_id, size_id) VALUES ($1, $2)`,
+                product.ID, sizeID,
+            )
+            if err != nil {
+                return product, err
+            }
+
+            var s Size
+            err = db.QueryRow(ctx,
+                `SELECT id, name, additional_price FROM sizes WHERE id=$1`,
+                sizeID,
+            ).Scan(&s.ID, &s.Name, &s.AdditionalPrice)
+            if err == nil {
+                product.Sizes = append(product.Sizes, s)
+            }
+        }
+    }
+
+    for _, filename := range imageFiles {
+        _, err := db.Exec(ctx,
+            `INSERT INTO product_images (product_id, image, updated_at) VALUES ($1, $2, NOW())`,
+            product.ID, filename,
+        )
+        if err != nil {
+            return product, err
+        }
+
+        product.Images = append(product.Images, ProductImage{
+            ProductID: product.ID,
+            Image:     filename,
+            UpdatedAt: time.Now(),
+        })
+    }
+
+    return product, nil
+}
+
+func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string) ([]ProductResponse, error) {
+	ctx := context.Background()
+	offset := (page - 1) * limit
+
+	allowedSortFields := map[string]bool{
+		"id":         true,
+		"title":      true,
+		"base_price": true,
+		"created_at": true,
+	}
+	if !allowedSortFields[sortBy] {
+		sortBy = "created_at"
+	}
+	if order != "ASC" && order != "DESC" {
+		order = "DESC"
+	}
+
+	query := `
+		SELECT id, title, description, base_price, stock, category_id, created_at, updated_at
+		FROM products
+	`
+	args := []interface{}{}
+	argIndex := 1
+
+	if search != "" {
+		query += fmt.Sprintf(" WHERE LOWER(title) LIKE LOWER($%d) OR LOWER(description) LIKE LOWER($%d)", argIndex, argIndex)
+		args = append(args, "%"+search+"%")
+		argIndex++
+	}
+
+	query += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortBy, order, argIndex, argIndex+1)
+	args = append(args, limit, offset)
+
+	rows, err := db.Query(ctx, query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var products []ProductResponse
+
+	for rows.Next() {
+		var p ProductResponse
+		err := rows.Scan(&p.ID, &p.Title, &p.Description, &p.BasePrice, &p.Stock, &p.CategoryID, &p.CreatedAt, &p.UpdatedAt)
+		if err != nil {
+			continue
+		}
+
+		variantRows, _ := db.Query(ctx,
+			`SELECT v.id, v.name, v.additional_price 
+			 FROM variants v
+			 JOIN product_variants pv ON pv.variant_id = v.id
+			 WHERE pv.product_id = $1`, p.ID)
+		for variantRows.Next() {
+			var v Variant
+			variantRows.Scan(&v.ID, &v.Name, &v.AdditionalPrice)
+			p.Variants = append(p.Variants, v)
+		}
+		variantRows.Close()
+
+		sizeRows, _ := db.Query(ctx,
+			`SELECT s.id, s.name, s.additional_price
+			 FROM sizes s
+			 JOIN product_sizes ps ON ps.size_id = s.id
+			 WHERE ps.product_id = $1`, p.ID)
+		for sizeRows.Next() {
+			var s Size
+			sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice)
+			p.Sizes = append(p.Sizes, s)
+		}
+		sizeRows.Close()
+
+		imageRows, _ := db.Query(ctx,
+			`SELECT image, updated_at 
+			 FROM product_images
+			 WHERE product_id=$1 AND deleted_at IS NULL`, p.ID)
+		for imageRows.Next() {
+			var img ProductImage
+			img.ProductID = p.ID
+			imageRows.Scan(&img.Image, &img.UpdatedAt)
+			p.Images = append(p.Images, img)
+		}
+		imageRows.Close()
+
+		products = append(products, p)
+	}
+
+	return products, nil
+}
+
 
 type ProductFilter struct {
 	Categories []int64  `json:"categories" form:"categories"`
@@ -101,10 +305,6 @@ type RecommendedProductInfo struct {
 	UpdatedAt   time.Time      `json:"updated_at"`
 }
 
-type Variant struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
-}
 
 type RecommendedProduct struct {
 	ProductID     int64 `json:"product_id"`
