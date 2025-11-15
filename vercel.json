@@ -6,11 +6,5 @@
       "src": "api/main.go",
       "use": "@vercel/go"
     }
-  ],
-  "rewrites": [
-    {
-      "source": "/(.*)",
-      "destination": "api/main.go"
-    }
   ]
 }
