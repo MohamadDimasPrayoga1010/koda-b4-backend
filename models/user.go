@@ -3,12 +3,10 @@ package models
 import (
 	"context"
 	"errors"
-	"fmt"
 	"io"
 	"mime/multipart"
 	"os"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -16,24 +14,6 @@ import (
 )
 
 
-// type User struct {
-//     ID        int       `json:"id"`
-//     Fullname  string    `json:"fullname" binding:"required"`
-//     Email     string    `json:"email" binding:"required,email"`
-//     Password  string    `json:"password" binding:"required,min=6"`
-//     Role      string    `json:"role"`
-//     CreatedAt time.Time `json:"created_at"`
-//     UpdatedAt time.Time `json:"updated_at"`
-// }
-
-
-// type UserResponse struct {
-// 	ID       int64  `json:"id"`
-// 	Fullname string `json:"fullname"`
-// 	Email    string `json:"email"`
-// 	Role     string `json:"role"`
-// 	Token    string `json:"token,omitempty"`
-// }
 
 
 type ProfileRequest struct {
@@ -66,51 +46,49 @@ type ProfileResponse struct {
 }
 
 
-func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address, fullname, email string, fileHeader *multipart.FileHeader) (*ProfileUser, error) {
+func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address, fullname, email string, fileHeader *multipart.FileHeader) (ProfileResponse, error) {
 	ctx := context.Background()
 
 	var imagePath *string
 	if fileHeader != nil {
 		if fileHeader.Size > 2*1024*1024 {
-			return nil, errors.New("file size exceeds 2MB")
+			return ProfileResponse{}, errors.New("file size exceeds 2MB")
 		}
-		ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+		ext := filepath.Ext(fileHeader.Filename)
 		if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
-			return nil, errors.New("file type must be jpg, jpeg, or png")
+			return ProfileResponse{}, errors.New("file type must be jpg, jpeg, or png")
 		}
 
-		filename := fmt.Sprintf("uploads/%d_%d%s", userID, time.Now().Unix(), ext)
-		if err := os.MkdirAll("uploads", os.ModePerm); err != nil {
-			return nil, err
-		}
+		uploadDir := "./uploads/profile"
+		os.MkdirAll(uploadDir, os.ModePerm)
+		filename := filepath.Join(uploadDir, filepath.Base(fileHeader.Filename))
+		imagePath = &filename
 
 		src, err := fileHeader.Open()
 		if err != nil {
-			return nil, err
+			return ProfileResponse{}, err
 		}
 		defer src.Close()
 
 		dst, err := os.Create(filename)
 		if err != nil {
-			return nil, err
+			return ProfileResponse{}, err
 		}
 		defer dst.Close()
 
 		if _, err := io.Copy(dst, src); err != nil {
-			return nil, err
+			return ProfileResponse{}, err
 		}
-
-		imagePath = &filename
 	}
 
-	var existingID int64
-	err := db.QueryRow(ctx, `SELECT id FROM profile WHERE user_id=$1`, userID).Scan(&existingID)
+	var profileID int64
+	err := db.QueryRow(ctx, `SELECT id FROM profile WHERE user_id=$1`, userID).Scan(&profileID)
 	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, err
+		return ProfileResponse{}, err
 	}
 
-	if existingID > 0 {
-		_, err := db.Exec(ctx, `
+	if profileID > 0 {
+		_, err = db.Exec(ctx, `
 			UPDATE profile
 			SET phone = COALESCE(NULLIF($1, ''), phone),
 				address = COALESCE(NULLIF($2, ''), address),
@@ -118,17 +96,14 @@ func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address, fullname, ema
 				updated_at = NOW()
 			WHERE user_id = $4
 		`, phone, address, imagePath, userID)
-		if err != nil {
-			return nil, err
-		}
 	} else {
-		_, err := db.Exec(ctx, `
-			INSERT INTO profile (phone, address, image, user_id)
-			VALUES ($1, $2, $3, $4)
-		`, phone, address, imagePath, userID)
-		if err != nil {
-			return nil, err
-		}
+		_, err = db.Exec(ctx, `
+			INSERT INTO profile (user_id, phone, address, image, created_at, updated_at)
+			VALUES ($1, $2, $3, $4, NOW(), NOW())
+		`, userID, phone, address, imagePath)
+	}
+	if err != nil {
+		return ProfileResponse{}, err
 	}
 
 	if fullname != "" || email != "" {
@@ -140,34 +115,42 @@ func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address, fullname, ema
 			WHERE id = $3
 		`, fullname, email, userID)
 		if err != nil {
-			return nil, err
+			return ProfileResponse{}, err
 		}
 	}
 
-	var profile ProfileUser
+	var resp ProfileResponse
+	var dbFullname, dbEmail *string
 	err = db.QueryRow(ctx, `
-		SELECT p.id, p.phone, p.address, p.image, p.user_id, p.created_at, p.updated_at,
-		       u.fullname, u.email
-		FROM profile p
-		JOIN users u ON u.id = p.user_id
-		WHERE p.user_id=$1
+		SELECT 
+			COALESCE(p.id,0), u.fullname, u.email, p.image, p.phone, p.address, u.id, 
+			COALESCE(p.created_at, NOW()), COALESCE(p.updated_at, NOW())
+		FROM users u
+		LEFT JOIN profile p ON p.user_id = u.id
+		WHERE u.id=$1
 	`, userID).Scan(
-		&profile.ID,
-		&profile.Phone,
-		&profile.Address,
-		&profile.Image,
-		&profile.UserID,
-		&profile.CreatedAt,
-		&profile.UpdatedAt,
-		&profile.Fullname,
-		&profile.Email,
+		&resp.ID,
+		&dbFullname,
+		&dbEmail,
+		&resp.Image,
+		&resp.Phone,
+		&resp.Address,
+		&resp.UserID,
+		&resp.CreatedAt,
+		&resp.UpdatedAt,
 	)
 	if err != nil {
-		return nil, err
+		return ProfileResponse{}, err
 	}
 
-	return &profile, nil
-}
+	if dbFullname != nil {
+		resp.Fullname = *dbFullname
+	}
+	if dbEmail != nil {
+		resp.Email = *dbEmail
+	}
 
+	return resp, nil
+}
 
 

@@ -1,16 +1,15 @@
 package controllers
 
 import (
-	"coffeeder-backend/libs"
 	"coffeeder-backend/models"
 	"context"
 	"fmt"
 	"net/http"
-	"os"
+
 	"path/filepath"
 	"strconv"
 	"strings"
-	"time"
+
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -330,7 +329,8 @@ func (auc *UserController) AddUser(ctx *gin.Context) {
 // @Failure 500 {object} models.Response
 // @Router /admin/users/{id} [patch]
 func (auc *UserController) EditUser(ctx *gin.Context) {
-	id := ctx.Param("id")
+	idStr := ctx.Param("id")
+	userID, _ := strconv.ParseInt(idStr, 10, 64)
 
 	fullname := ctx.PostForm("fullname")
 	email := ctx.PostForm("email")
@@ -338,156 +338,53 @@ func (auc *UserController) EditUser(ctx *gin.Context) {
 	phone := ctx.PostForm("phone")
 	address := ctx.PostForm("address")
 
-	if fullname == "" && email == "" && phone == "" && address == "" && password == "" {
-		ctx.JSON(400, models.Response{
-			Success: false,
-			Message: "Tidak ada data yang diubah",
-		})
-		return
-	}
+	file, _ := ctx.FormFile("image")
 
-	if password != "" && len(password) < 6 {
-		ctx.JSON(400, models.Response{
-			Success: false,
-			Message: "Password minimal 6 karakter",
-		})
-		return
-	}
-
-	var imagePath string
-	file, err := ctx.FormFile("image")
-	if err == nil {
-		const maxSize = 2 << 20
+	if file != nil {
+		const maxSize = 2 * 1024 * 1024
 		if file.Size > maxSize {
 			ctx.JSON(400, models.Response{
 				Success: false,
-				Message: "Ukuran file melebihi 2MB",
+				Message: "File terlalu besar (max 2MB): " + file.Filename,
 			})
 			return
 		}
 
-		allowedTypes := map[string]bool{
-			"image/jpeg": true,
-			"image/png":  true,
+		allowedExts := map[string]bool{
+			".jpg":  true,
+			".jpeg": true,
+			".png":  true,
 		}
-
-		opened, _ := file.Open()
-		defer opened.Close()
-
-		buffer := make([]byte, 512)
-		_, _ = opened.Read(buffer)
-		contentType := http.DetectContentType(buffer)
-		if !allowedTypes[contentType] {
+		ext := strings.ToLower(filepath.Ext(file.Filename))
+		if !allowedExts[ext] {
 			ctx.JSON(400, models.Response{
 				Success: false,
-				Message: "Format gambar tidak didukung (hanya JPG dan PNG)",
-			})
-			return
-		}
-
-		savePath := "uploads/" + file.Filename
-		if err := ctx.SaveUploadedFile(file, savePath); err != nil {
-			ctx.JSON(500, models.Response{
-				Success: false,
-				Message: "Gagal menyimpan file gambar",
-				Data:    err.Error(),
-			})
-			return
-		}
-		imagePath = savePath
-	}
-
-	updateFields := []string{}
-	args := []interface{}{}
-	argIdx := 1
-
-	if fullname != "" {
-		updateFields = append(updateFields, fmt.Sprintf("fullname=$%d", argIdx))
-		args = append(args, fullname)
-		argIdx++
-	}
-	if email != "" {
-		updateFields = append(updateFields, fmt.Sprintf("email=$%d", argIdx))
-		args = append(args, email)
-		argIdx++
-	}
-	if password != "" {
-		hashed, err := libs.HashPassword(password)
-		if err != nil {
-			ctx.JSON(500, models.Response{
-				Success: false,
-				Message: "Gagal meng-hash password",
-			})
-			return
-		}
-		updateFields = append(updateFields, fmt.Sprintf("password=$%d", argIdx))
-		args = append(args, hashed)
-		argIdx++
-	}
-
-	if len(updateFields) > 0 {
-		query := fmt.Sprintf(`
-			UPDATE users 
-			SET %s, updated_at=now()
-			WHERE id=$%d
-		`, strings.Join(updateFields, ", "), argIdx)
-		args = append(args, id)
-
-		_, err := auc.DB.Exec(context.Background(), query, args...)
-		if err != nil {
-			ctx.JSON(500, models.Response{
-				Success: false,
-				Message: "Gagal mengupdate data user",
-				Data:    err.Error(),
+				Message: "Format file tidak didukung (jpg/jpeg/png): " + file.Filename,
 			})
 			return
 		}
 	}
 
-	profileFields := []string{}
-	profileArgs := []interface{}{}
-	pIdx := 1
-
-	if imagePath != "" {
-		profileFields = append(profileFields, fmt.Sprintf("image=$%d", pIdx))
-		profileArgs = append(profileArgs, imagePath)
-		pIdx++
-	}
-	if phone != "" {
-		profileFields = append(profileFields, fmt.Sprintf("phone=$%d", pIdx))
-		profileArgs = append(profileArgs, phone)
-		pIdx++
-	}
-	if address != "" {
-		profileFields = append(profileFields, fmt.Sprintf("address=$%d", pIdx))
-		profileArgs = append(profileArgs, address)
-		pIdx++
-	}
-
-	if len(profileFields) > 0 {
-		query := fmt.Sprintf(`
-			UPDATE profile 
-			SET %s, updated_at=now()
-			WHERE user_id=$%d
-		`, strings.Join(profileFields, ", "), pIdx)
-		profileArgs = append(profileArgs, id)
-
-		_, err := auc.DB.Exec(context.Background(), query, profileArgs...)
-		if err != nil {
-			ctx.JSON(500, models.Response{
-				Success: false,
-				Message: "Gagal mengupdate profil user",
-				Data:    err.Error(),
-			})
-			return
-		}
+	user, profile, err := models.UpdateUser(auc.DB, userID, fullname, email, password, phone, address, file)
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Gagal update user",
+			Data:    err.Error(),
+		})
+		return
 	}
 
 	ctx.JSON(200, models.Response{
 		Success: true,
-		Message: "Data user berhasil diperbarui",
+		Message: "User berhasil diperbarui",
+		Data: map[string]interface{}{
+			"user":    user,
+			"profile": profile,
+		},
 	})
 }
+
 
 // DeleteUser godoc
 // @Summary Delete a user
@@ -559,6 +456,8 @@ func (uc *UserController) UpdateProfile(ctx *gin.Context) {
 		userID = v
 	case int:
 		userID = int64(v)
+	case float64:
+		userID = int64(v)
 	default:
 		ctx.JSON(http.StatusInternalServerError, models.Response{
 			Success: false,
@@ -573,64 +472,29 @@ func (uc *UserController) UpdateProfile(ctx *gin.Context) {
 	email := ctx.PostForm("email")
 	file, _ := ctx.FormFile("image")
 
-	var savedFile string
 	if file != nil {
-		const maxSize = 2 * 1024 * 1024
-		if file.Size > maxSize {
-			ctx.JSON(400, models.Response{
+		if file.Size > 2*1024*1024 {
+			ctx.JSON(http.StatusBadRequest, models.Response{
 				Success: false,
-				Message: "File too large (max 2MB): " + file.Filename,
+				Message: "File too large (max 2MB)",
 			})
 			return
 		}
 
-		allowedExts := map[string]bool{".jpg": true, ".jpeg": true, ".png": true}
-		ext := strings.ToLower(filepath.Ext(file.Filename))
-		if !allowedExts[ext] {
-			ctx.JSON(400, models.Response{
+		ext := file.Filename
+		ext = filepath.Ext(ext)
+		if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+			ctx.JSON(http.StatusBadRequest, models.Response{
 				Success: false,
-				Message: "Invalid file type (only png, jpg, jpeg): " + file.Filename,
-			})
-			return
-		}
-
-		uploadDir := "./uploads/profile"
-		os.MkdirAll(uploadDir, os.ModePerm)
-		savedFile = fmt.Sprintf("%d_%d%s", userID, time.Now().UnixNano(), ext)
-		fullPath := filepath.Join(uploadDir, savedFile)
-		if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
-			ctx.JSON(500, models.Response{
-				Success: false,
-				Message: "Failed to save image",
-				Data:    err.Error(),
+				Message: "Invalid file type (only jpg, jpeg, png)",
 			})
 			return
 		}
 	}
 
-	var profile models.ProfileUser
-	args := []interface{}{phone, address}
-	query := "UPDATE profile SET phone=COALESCE(NULLIF($1,''),phone), address=COALESCE(NULLIF($2,''),address)"
-	argIndex := 3
-	if savedFile != "" {
-		query += fmt.Sprintf(", image=$%d", argIndex)
-		args = append(args, savedFile)
-		argIndex++
-	}
-	query += fmt.Sprintf(" WHERE user_id=$%d RETURNING id, user_id, phone, address, image, created_at, updated_at", argIndex)
-	args = append(args, userID)
-
-	err := uc.DB.QueryRow(context.Background(), query, args...).Scan(
-		&profile.ID,
-		&profile.UserID,
-		&profile.Phone,
-		&profile.Address,
-		&profile.Image,
-		&profile.CreatedAt,
-		&profile.UpdatedAt,
-	)
+	profileResp, err := models.UpdateProfile(uc.DB, userID, phone, address, fullname, email, file)
 	if err != nil {
-		ctx.JSON(500, models.Response{
+		ctx.JSON(http.StatusInternalServerError, models.Response{
 			Success: false,
 			Message: "Failed to update profile",
 			Data:    err.Error(),
@@ -638,41 +502,11 @@ func (uc *UserController) UpdateProfile(ctx *gin.Context) {
 		return
 	}
 
-	if fullname != "" || email != "" {
-		_, _ = uc.DB.Exec(context.Background(), `
-			UPDATE users
-			SET fullname = COALESCE(NULLIF($1, ''), fullname),
-				email = COALESCE(NULLIF($2, ''), email),
-				updated_at = NOW()
-			WHERE id=$3
-		`, fullname, email, userID)
-	}
-
-	var finalFullname, finalEmail string
-	_ = uc.DB.QueryRow(context.Background(), `SELECT fullname, email FROM users WHERE id=$1`, userID).Scan(&finalFullname, &finalEmail)
-
-	type ExtendedProfile struct {
-		models.ProfileUser
-		Fullname string `json:"fullname"`
-		Email    string `json:"email"`
-	}
-	profileResp := models.ProfileResponse{
-    ID:        profile.ID,
-    UserID:    profile.UserID,
-    Fullname:  fullname,
-    Email:     email,
-    Image:     profile.Image,
-    Phone:     profile.Phone,
-    Address:   profile.Address,
-    CreatedAt: profile.CreatedAt,
-    UpdatedAt: profile.UpdatedAt,
-}
-
-ctx.JSON(200, models.Response{
-    Success: true,
-    Message: "Profile updated successfully",
-    Data:    profileResp,
-})
+	ctx.JSON(http.StatusOK, models.Response{
+		Success: true,
+		Message: "Profile updated successfully",
+		Data:    profileResp,
+	})
 }
 
 
@@ -726,7 +560,6 @@ func (uc *UserController) GetProfile(ctx *gin.Context) {
 		return
 	}
 
-	// Ambil fullname dan email dari table user
 	var fullname, email string
 	err = uc.DB.QueryRow(ctx, `
         SELECT fullname, email FROM users WHERE id=$1
@@ -738,8 +571,6 @@ func (uc *UserController) GetProfile(ctx *gin.Context) {
 		})
 		return
 	}
-
-	// Gabungkan ke struct response
 	resp := models.ProfileResponse{
 		ID:        profile.ID,
 		Fullname:  fullname,

@@ -118,3 +118,121 @@ func AddUser(db *pgxpool.Pool, fullname, email, password, role string, phone, ad
 
 	return &u, p, nil
 }
+
+
+func UpdateUser(db *pgxpool.Pool, userID int64, fullname, email, password, phone, address string, fileHeader *multipart.FileHeader) (*UserList, *Profile, error) {
+	ctx := context.Background()
+
+	var imagePath *string
+	if fileHeader != nil {
+		if fileHeader.Size > 2*1024*1024 {
+			return nil, nil, errors.New("file size exceeds 2MB")
+		}
+
+		ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+		if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+			return nil, nil, errors.New("file type must be jpg, jpeg, or png")
+		}
+
+		filename := fmt.Sprintf("uploads/%d_%d%s", userID, time.Now().UnixNano(), ext)
+		if err := os.MkdirAll("uploads", os.ModePerm); err != nil {
+			return nil, nil, err
+		}
+
+		src, err := fileHeader.Open()
+		if err != nil {
+			return nil, nil, err
+		}
+		defer src.Close()
+
+		dst, err := os.Create(filename)
+		if err != nil {
+			return nil, nil, err
+		}
+		defer dst.Close()
+
+		if _, err := io.Copy(dst, src); err != nil {
+			return nil, nil, err
+		}
+
+		imagePath = &filename
+	}
+
+	args := []interface{}{}
+	fields := []string{}
+	argIdx := 1
+
+	if fullname != "" {
+		fields = append(fields, fmt.Sprintf("fullname=$%d", argIdx))
+		args = append(args, fullname)
+		argIdx++
+	}
+	if email != "" {
+		fields = append(fields, fmt.Sprintf("email=$%d", argIdx))
+		args = append(args, email)
+		argIdx++
+	}
+	if password != "" {
+		hashed, err := libs.HashPassword(password)
+		if err != nil {
+			return nil, nil, err
+		}
+		fields = append(fields, fmt.Sprintf("password=$%d", argIdx))
+		args = append(args, hashed)
+		argIdx++
+	}
+
+	if len(fields) > 0 {
+		query := fmt.Sprintf("UPDATE users SET %s, updated_at=NOW() WHERE id=$%d", strings.Join(fields, ","), argIdx)
+		args = append(args, userID)
+		_, err := db.Exec(ctx, query, args...)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	profileFields := []string{}
+	profileArgs := []interface{}{}
+	pIdx := 1
+
+	if imagePath != nil {
+		profileFields = append(profileFields, fmt.Sprintf("image=$%d", pIdx))
+		profileArgs = append(profileArgs, *imagePath)
+		pIdx++
+	}
+	if phone != "" {
+		profileFields = append(profileFields, fmt.Sprintf("phone=$%d", pIdx))
+		profileArgs = append(profileArgs, phone)
+		pIdx++
+	}
+	if address != "" {
+		profileFields = append(profileFields, fmt.Sprintf("address=$%d", pIdx))
+		profileArgs = append(profileArgs, address)
+		pIdx++
+	}
+
+	if len(profileFields) > 0 {
+		query := fmt.Sprintf("UPDATE profile SET %s, updated_at=NOW() WHERE user_id=$%d", strings.Join(profileFields, ","), pIdx)
+		profileArgs = append(profileArgs, userID)
+		_, err := db.Exec(ctx, query, profileArgs...)
+		if err != nil {
+			return nil, nil, err
+		}
+	}
+
+	var u UserList
+	var p Profile
+	err := db.QueryRow(ctx, `
+		SELECT u.id, u.fullname, u.email, u.role, p.image, p.phone, p.address, u.created_at, u.updated_at
+		FROM users u
+		LEFT JOIN profile p ON p.user_id=u.id
+		WHERE u.id=$1
+	`, userID).Scan(
+		&u.ID, &u.Fullname, &u.Email, &u.Role, &p.Image, &p.Phone, &p.Address, &u.CreatedAt, &u.UpdatedAt,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+	u.Profile = &p
+	return &u, &p, nil
+}
