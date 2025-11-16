@@ -24,7 +24,7 @@ func GenerateTokenForReset(email string) (string, error){
 
 	claims := jwt.MapClaims{
 		"email": email,
-		"exp":   time.Now().Add(15 * time.Minute).Unix(),
+		"exp":   time.Now().Add(1 * time.Minute).Unix(),
 	}
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
 	return token.SignedString([]byte(secretKey))
