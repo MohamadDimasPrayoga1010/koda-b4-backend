@@ -763,17 +763,18 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 		}
 	}
 
+
 	if fav := ctx.Query("favorite"); fav != "" {
 		b := fav == "true"
 		filter.IsFavorite = &b
 	}
+
 
 	if pmin := ctx.Query("price_min"); pmin != "" {
 		if f, err := strconv.ParseFloat(pmin, 64); err == nil {
 			filter.PriceMin = &f
 		}
 	}
-
 	if pmax := ctx.Query("price_max"); pmax != "" {
 		if f, err := strconv.ParseFloat(pmax, 64); err == nil {
 			filter.PriceMax = &f
@@ -781,7 +782,7 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 	}
 
 	filter.SortBy = ctx.DefaultQuery("sortby", "name")
-	searchQuery := ctx.Query("q")
+	searchQuery := ctx.Query("q") 
 
 	pageStr := ctx.DefaultQuery("page", "1")
 	limitStr := ctx.DefaultQuery("limit", "10")
@@ -795,61 +796,60 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 	}
 	offset := (page - 1) * limit
 
+
 	query := `
 		SELECT 
 			p.id, 
 			p.title, 
 			p.description, 
 			p.base_price,
+			p.stock,
+			p.category_id,
+			p.created_at,
+			p.updated_at,
 			COALESCE(pi.image, '') AS image,
-			COALESCE(v.name, '') AS variant_name,
 			COALESCE(json_agg(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL), '[]') AS sizes
 		FROM products p
 		LEFT JOIN product_images pi ON pi.product_id = p.id
 		LEFT JOIN product_sizes ps ON ps.product_id = p.id
 		LEFT JOIN sizes s ON s.id = ps.size_id
-		LEFT JOIN variants v ON v.id = p.variant_id
 		WHERE 1=1
 	`
 
-	var pFilter []interface{}
-	filterIndex := 1
+	var args []interface{}
+	argIndex := 1
 
 	if len(filter.Categories) > 0 {
-		query += fmt.Sprintf(" AND p.category_id = ANY($%d)", filterIndex)
-		pFilter = append(pFilter, filter.Categories)
-		filterIndex++
+		query += fmt.Sprintf(" AND p.category_id = ANY($%d)", argIndex)
+		args = append(args, filter.Categories)
+		argIndex++
 	}
-
 	if filter.IsFavorite != nil {
-		query += fmt.Sprintf(" AND p.is_favorite = $%d", filterIndex)
-		pFilter = append(pFilter, *filter.IsFavorite)
-		filterIndex++
+		query += fmt.Sprintf(" AND p.is_favorite = $%d", argIndex)
+		args = append(args, *filter.IsFavorite)
+		argIndex++
 	}
-
 	if filter.PriceMin != nil {
-		query += fmt.Sprintf(" AND p.base_price >= $%d", filterIndex)
-		pFilter = append(pFilter, *filter.PriceMin)
-		filterIndex++
+		query += fmt.Sprintf(" AND p.base_price >= $%d", argIndex)
+		args = append(args, *filter.PriceMin)
+		argIndex++
 	}
-
 	if filter.PriceMax != nil {
-		query += fmt.Sprintf(" AND p.base_price <= $%d", filterIndex)
-		pFilter = append(pFilter, *filter.PriceMax)
-		filterIndex++
+		query += fmt.Sprintf(" AND p.base_price <= $%d", argIndex)
+		args = append(args, *filter.PriceMax)
+		argIndex++
 	}
 
-	if searchQuery != "" {
-		query += fmt.Sprintf(" AND (LOWER(p.title) LIKE LOWER($%d) OR LOWER(p.description) LIKE LOWER($%d))", filterIndex, filterIndex)
-		pFilter = append(pFilter, "%"+searchQuery+"%")
-		filterIndex++
-	}
+if searchQuery != "" {
+    query += fmt.Sprintf(" AND (LOWER(p.title) LIKE LOWER($%d) OR LOWER(p.description) LIKE LOWER($%d))", argIndex, argIndex+1)
+    args = append(args, "%"+searchQuery+"%")
+    args = append(args, "%"+searchQuery+"%")
+    argIndex += 2
+}
 
-	query += " GROUP BY p.id, pi.image, v.name"
+	query += " GROUP BY p.id, pi.image"
 
 	switch filter.SortBy {
-	case "name":
-		query += " ORDER BY p.title ASC"
 	case "baseprice":
 		query += " ORDER BY p.base_price ASC"
 	default:
@@ -858,7 +858,7 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 
 	query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
 
-	rows, err := pc.DB.Query(context.Background(), query, pFilter...)
+	rows, err := pc.DB.Query(context.Background(), query, args...)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -871,36 +871,52 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 
 	var products []map[string]interface{}
 	for rows.Next() {
-		var (
-			id          int64
-			title       string
-			desc        string
-			price       float64
-			image       string
-			variantName string
-			sizesRaw    []byte
-		)
+		var id, categoryID int64
+		var title, desc, image string
+		var price float64
+		var stock int
+		var createdAt, updatedAt time.Time
+		var sizesRaw []byte
 
-		if err := rows.Scan(&id, &title, &desc, &price, &image, &variantName, &sizesRaw); err != nil {
-			ctx.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": "Gagal membaca data produk",
-				"error":   err.Error(),
-			})
-			return
+		if err := rows.Scan(&id, &title, &desc, &price, &stock, &categoryID, &createdAt, &updatedAt, &image, &sizesRaw); err != nil {
+			continue
 		}
 
 		var sizes []string
 		json.Unmarshal(sizesRaw, &sizes)
+
+		var variantRows, _ = pc.DB.Query(context.Background(),
+			`SELECT v.id, v.name, v.additional_price
+			 FROM variants v
+			 JOIN product_variants pv ON pv.variant_id = v.id
+			 WHERE pv.product_id=$1`, id)
+		var variants []map[string]interface{}
+		for variantRows.Next() {
+			var vid int64
+			var vname string
+			var addPrice float64
+			if err := variantRows.Scan(&vid, &vname, &addPrice); err == nil {
+				variants = append(variants, map[string]interface{}{
+					"id":               vid,
+					"name":             vname,
+					"additional_price": addPrice,
+				})
+			}
+		}
+		variantRows.Close()
 
 		products = append(products, map[string]interface{}{
 			"id":          id,
 			"title":       title,
 			"description": desc,
 			"base_price":  price,
+			"stock":       stock,
+			"category_id": categoryID,
 			"image":       image,
-			"variant":     variantName,
 			"sizes":       sizes,
+			"variants":    variants,
+			"created_at":  createdAt,
+			"updated_at":  updatedAt,
 		})
 	}
 
@@ -936,17 +952,16 @@ func (pc *ProductController) GetProductDetail(ctx *gin.Context) {
 	}
 
 	var product models.ProductDetail
-	var variantID *int64
 	var categoryID int64
 
 	query := `
-		SELECT id, title, description, base_price, stock, category_id, variant_id
+		SELECT id, title, description, base_price, stock, category_id
 		FROM products
 		WHERE id=$1
 	`
 	err = pc.DB.QueryRow(context.Background(), query, productID).Scan(
 		&product.ID, &product.Title, &product.Description,
-		&product.BasePrice, &product.Stock, &categoryID, &variantID,
+		&product.BasePrice, &product.Stock, &categoryID,
 	)
 	if err != nil {
 		ctx.JSON(http.StatusNotFound, gin.H{
@@ -957,11 +972,25 @@ func (pc *ProductController) GetProductDetail(ctx *gin.Context) {
 	}
 	product.CategoryID = categoryID
 
-	if variantID != nil {
-		var v models.Variant
-		if err := pc.DB.QueryRow(context.Background(), `SELECT id, name FROM variants WHERE id=$1`, *variantID).
-			Scan(&v.ID, &v.Name); err == nil {
-			product.Variant = &v
+	product.Variant = nil
+	variantRows, err := pc.DB.Query(context.Background(),
+		`SELECT v.id, v.name, v.additional_price
+		 FROM variants v
+		 JOIN product_variants pv ON pv.variant_id = v.id
+		 WHERE pv.product_id=$1`, product.ID)
+	if err == nil {
+		var variants []models.Variant
+		for variantRows.Next() {
+			var v models.Variant
+			if err := variantRows.Scan(&v.ID, &v.Name, &v.AdditionalPrice); err == nil {
+				variants = append(variants, v)
+			}
+		}
+		variantRows.Close()
+		if len(variants) == 1 {
+			product.Variant = &variants[0]
+		} else if len(variants) > 1 {
+			product.Variant = &variants[0]
 		}
 	}
 
@@ -980,6 +1009,7 @@ func (pc *ProductController) GetProductDetail(ctx *gin.Context) {
 		}
 		rowsImg.Close()
 	}
+
 	product.Sizes = []models.Size{}
 	if product.Variant == nil || product.Variant.Name != "Food" {
 		rowsSize, err := pc.DB.Query(context.Background(),
@@ -1001,73 +1031,63 @@ func (pc *ProductController) GetProductDetail(ctx *gin.Context) {
 	}
 
 	product.Recommended = []models.RecommendedProductInfo{}
-	var recQuery string
-	var recArgs []interface{}
-	if variantID != nil {
-		recQuery = `
-			SELECT p.id, p.title, p.description, p.base_price, p.stock, p.category_id, p.variant_id
-			FROM recommended_products rp
-			JOIN products p ON rp.recommended_id = p.id
-			WHERE rp.product_id=$1 AND p.variant_id=$2
-		`
-		recArgs = append(recArgs, product.ID, *variantID)
-	} else {
-		recQuery = `
-			SELECT p.id, p.title, p.description, p.base_price, p.stock, p.category_id, p.variant_id
-			FROM recommended_products rp
-			JOIN products p ON rp.recommended_id = p.id
-			WHERE rp.product_id=$1
-		`
-		recArgs = append(recArgs, product.ID)
-	}
-
-	rowsRec, err := pc.DB.Query(context.Background(), recQuery, recArgs...)
+	recQuery := `
+		SELECT p.id, p.title, p.description, p.base_price, p.stock, p.category_id
+		FROM recommended_products rp
+		JOIN products p ON rp.recommended_id = p.id
+		WHERE rp.product_id=$1
+	`
+	rowsRec, err := pc.DB.Query(context.Background(), recQuery, product.ID)
 	if err == nil {
 		for rowsRec.Next() {
 			var rec models.RecommendedProductInfo
-			var recVariantID *int64
-			if err := rowsRec.Scan(&rec.ID, &rec.Title, &rec.Description, &rec.BasePrice, &rec.Stock, &rec.CategoryID, &recVariantID); err != nil {
+			if err := rowsRec.Scan(&rec.ID, &rec.Title, &rec.Description, &rec.BasePrice, &rec.Stock, &rec.CategoryID); err != nil {
 				continue
 			}
 
-			if recVariantID != nil {
+			var recVariantRows, _ = pc.DB.Query(context.Background(),
+				`SELECT v.id, v.name, v.additional_price
+				 FROM variants v
+				 JOIN product_variants pv ON pv.variant_id = v.id
+				 WHERE pv.product_id=$1`, rec.ID)
+			var recVariants []models.Variant
+			for recVariantRows.Next() {
 				var v models.Variant
-				if err := pc.DB.QueryRow(context.Background(), `SELECT id, name FROM variants WHERE id=$1`, *recVariantID).Scan(&v.ID, &v.Name); err == nil {
-					rec.Variant = &v
+				if err := recVariantRows.Scan(&v.ID, &v.Name, &v.AdditionalPrice); err == nil {
+					recVariants = append(recVariants, v)
 				}
+			}
+			recVariantRows.Close()
+			if len(recVariants) > 0 {
+				rec.Variant = &recVariants[0]
 			}
 
 			rec.Images = []models.ProductImage{}
-			imgRows, err := pc.DB.Query(context.Background(),
-				`SELECT image, updated_at FROM product_images WHERE product_id=$1 ORDER BY updated_at ASC`,
-				rec.ID,
-			)
-			if err == nil {
-				for imgRows.Next() {
-					var img models.ProductImage
-					if err := imgRows.Scan(&img.Image, &img.UpdatedAt); err == nil {
-						img.ProductID = rec.ID
-						rec.Images = append(rec.Images, img)
-					}
+			imgRows, _ := pc.DB.Query(context.Background(),
+				`SELECT image, updated_at FROM product_images WHERE product_id=$1 ORDER BY updated_at ASC`, rec.ID)
+			for imgRows.Next() {
+				var img models.ProductImage
+				if err := imgRows.Scan(&img.Image, &img.UpdatedAt); err == nil {
+					img.ProductID = rec.ID
+					rec.Images = append(rec.Images, img)
 				}
-				imgRows.Close()
 			}
+			imgRows.Close()
 
 			rec.Sizes = []models.Size{}
 			if rec.Variant == nil || rec.Variant.Name != "Food" {
-				sizeRows, err := pc.DB.Query(context.Background(),
-					`SELECT s.id, s.name, s.additional_price FROM product_sizes ps JOIN sizes s ON ps.size_id=s.id WHERE ps.product_id=$1`,
-					rec.ID,
-				)
-				if err == nil {
-					for sizeRows.Next() {
-						var s models.Size
-						if err := sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice); err == nil {
-							rec.Sizes = append(rec.Sizes, s)
-						}
+				sizeRows, _ := pc.DB.Query(context.Background(),
+					`SELECT s.id, s.name, s.additional_price 
+					 FROM product_sizes ps
+					 JOIN sizes s ON ps.size_id = s.id
+					 WHERE ps.product_id=$1`, rec.ID)
+				for sizeRows.Next() {
+					var s models.Size
+					if err := sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice); err == nil {
+						rec.Sizes = append(rec.Sizes, s)
 					}
-					sizeRows.Close()
 				}
+				sizeRows.Close()
 			}
 
 			product.Recommended = append(product.Recommended, rec)
@@ -1082,30 +1102,51 @@ func (pc *ProductController) GetProductDetail(ctx *gin.Context) {
 	})
 }
 
+
+
 func (pc *ProductController) AddToCart(ctx *gin.Context) {
+
 	userIDValue, exists := ctx.Get("userID")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "Unauthorized",
+		ctx.JSON(http.StatusUnauthorized, models.Response{
+			Success: false,
+			Message: "Unauthorized",
 		})
 		return
 	}
 
-	userID, ok := userIDValue.(int64)
-	if !ok {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Invalid user id",
+	var userID int64
+	switch v := userIDValue.(type) {
+	case int64:
+		userID = v
+	case int:
+		userID = int64(v)
+	case float64:
+		userID = int64(v)
+	case string:
+		uid, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, models.Response{
+				Success: false,
+				Message: "Invalid user ID",
+			})
+			return
+		}
+		userID = uid
+	default:
+		ctx.JSON(http.StatusBadRequest, models.Response{
+			Success: false,
+			Message: "Invalid user ID",
 		})
 		return
 	}
 
 	var carts []models.Cart
 	if err := ctx.ShouldBindJSON(&carts); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": err.Error(),
+		ctx.JSON(http.StatusBadRequest, models.Response{
+			Success: false,
+			Message: "Invalid request body",
+			Data:    err.Error(),
 		})
 		return
 	}
@@ -1114,67 +1155,86 @@ func (pc *ProductController) AddToCart(ctx *gin.Context) {
 	for _, c := range carts {
 		item, err := models.AddOrUpdateCart(pc.DB, userID, c.ProductID, c.SizeID, c.VariantID, c.Quantity)
 		if err != nil {
-			if err.Error() == "quantity exceeds available stock" {
-				ctx.JSON(http.StatusBadRequest, gin.H{
-					"success": false,
-					"message": err.Error(),
+			if err.Error() == "stock not enough for product" {
+				ctx.JSON(http.StatusBadRequest, models.Response{
+					Success: false,
+					Message: err.Error(),
 				})
 				return
 			}
-			// Error lainnya
-			ctx.JSON(http.StatusInternalServerError, gin.H{
-				"success": false,
-				"message": err.Error(),
+			ctx.JSON(http.StatusInternalServerError, models.Response{
+				Success: false,
+				Message: err.Error(),
 			})
 			return
 		}
 		results = append(results, item)
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Items added successfully",
-		"result":  results,
+	ctx.JSON(http.StatusOK, models.Response{
+		Success: true,
+		Message: "Items added successfully",
+		Data:    results,
 	})
 }
+
 
 func (pc *ProductController) GetCart(ctx *gin.Context) {
 	userIDValue, exists := ctx.Get("userID")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "Unauthorized"})
+		ctx.JSON(401, models.Response{
+			Success: false,
+			Message: "Unauthorized",
+		})
 		return
 	}
 
-	userID, ok := userIDValue.(int64)
-	if !ok {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "invalid user id"})
+	var userID int64
+	switch v := userIDValue.(type) {
+	case int64:
+		userID = v
+	case int:
+		userID = int64(v)
+	case float64:
+		userID = int64(v)
+	case string:
+		tmp, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			ctx.JSON(400, models.Response{
+				Success: false,
+				Message: "Invalid user ID",
+			})
+			return
+		}
+		userID = tmp
+	default:
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid user ID",
+		})
 		return
 	}
 
-	cartItems, err := models.GetCartByUser(pc.DB, userID)
+	cartItems, total, err := models.GetCartByUser(pc.DB, userID)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error()})
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to fetch cart",
+			Data:    err.Error(),
+		})
 		return
 	}
 
-	var total float64
-	for _, item := range cartItems {
-		total += item.Subtotal
-	}
-
-	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Cart fetched successfully",
-		"result":  cartItems,
-		"total":   total,
+	ctx.JSON(200, models.Response{
+		Success: true,
+		Message: "Cart fetched successfully",
+		Data: map[string]interface{}{
+			"items": cartItems,
+			"total": total,
+		},
 	})
 }
+
 
 func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
 

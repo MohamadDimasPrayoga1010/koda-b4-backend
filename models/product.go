@@ -463,12 +463,12 @@ type RecommendedProduct struct {
 }
 
 type Cart struct {
-	ID        int64     `json:"id"`
-	UserID    int64     `json:"user_id"`
-	ProductID int64     `json:"product_id"`
-	SizeID    *int64    `json:"size_id,omitempty"`
-	VariantID *int64    `json:"variant_id,omitempty"`
-	Quantity  int       `json:"quantity"`
+	ID        int64  `json:"id"`
+	UserID    int64  `json:"user_id"`
+	ProductID int64  `json:"product_id"`
+	SizeID    *int64 `json:"size_id,omitempty"`
+	VariantID *int64 `json:"variant_id,omitempty"`
+	Quantity  int    `json:"quantity"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -488,55 +488,45 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 	ctx := context.Background()
 	var cartID int64
 
-	// Cek stok produk
 	var stock int
-	err := db.QueryRow(ctx, `
-		SELECT stock FROM products 
-		WHERE id=$1
-	`, productID).Scan(&stock)
+	err := db.QueryRow(ctx, `SELECT stock FROM products WHERE id=$1`, productID).Scan(&stock)
 	if err != nil {
 		return CartItemResponse{}, err
 	}
+	if quantity > stock {
+		return CartItemResponse{}, errors.New("quantity exceeds available stock")
+	}
 
-	// Cek apakah sudah ada di cart
 	var existingQty int
-	checkQuery := `
-		SELECT id, quantity FROM carts 
-		WHERE user_id=$1 AND product_id=$2 AND 
-		      COALESCE(size_id, 0) = COALESCE($3, 0) AND 
-		      COALESCE(variant_id, 0) = COALESCE($4, 0)
+	err = db.QueryRow(ctx, `
+		SELECT id, quantity FROM carts
+		WHERE user_id=$1 AND product_id=$2 
+		AND COALESCE(size_id,0)=COALESCE($3,0)
+		AND COALESCE(variant_id,0)=COALESCE($4,0)
 		LIMIT 1
-	`
-	err = db.QueryRow(ctx, checkQuery, userID, productID, sizeID, variantID).Scan(&cartID, &existingQty)
+	`, userID, productID, sizeID, variantID).Scan(&cartID, &existingQty)
+
 	if err == nil {
 		newQty := existingQty + quantity
 		if newQty > stock {
-			return CartItemResponse{}, errors.New("stock not enough for product")
+			return CartItemResponse{}, errors.New("quantity exceeds available stock")
 		}
-
-		updateQuery := `UPDATE carts SET quantity=$1, updated_at=NOW() WHERE id=$2`
-		_, err := db.Exec(ctx, updateQuery, newQty, cartID)
+		_, err := db.Exec(ctx, `UPDATE carts SET quantity=$1, updated_at=NOW() WHERE id=$2`, newQty, cartID)
 		if err != nil {
 			return CartItemResponse{}, err
 		}
 	} else {
-		if quantity > stock {
-			return CartItemResponse{}, errors.New("stock not enough for product")
-		}
-
-		insertQuery := `
+		err := db.QueryRow(ctx, `
 			INSERT INTO carts (user_id, product_id, size_id, variant_id, quantity, created_at, updated_at)
-			VALUES ($1, $2, $3, $4, $5, NOW(), NOW())
-			RETURNING id
-		`
-		err := db.QueryRow(ctx, insertQuery, userID, productID, sizeID, variantID, quantity).Scan(&cartID)
+			VALUES ($1,$2,$3,$4,$5,NOW(),NOW()) RETURNING id
+		`, userID, productID, sizeID, variantID, quantity).Scan(&cartID)
 		if err != nil {
 			return CartItemResponse{}, err
 		}
 	}
 
-	// Ambil detail cart item termasuk subtotal
-	detailQuery := `
+	var item CartItemResponse
+	err = db.QueryRow(ctx, `
 		SELECT 
 			c.product_id,
 			p.title,
@@ -545,20 +535,17 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 			COALESCE(s.name,'') AS size_name,
 			COALESCE(v.name,'') AS variant_name,
 			c.quantity,
-			(p.base_price + COALESCE(s.additional_price,0)) * c.quantity AS subtotal
+			(p.base_price + COALESCE(s.additional_price,0) + COALESCE(v.additional_price,0)) * c.quantity AS subtotal
 		FROM carts c
-		JOIN products p ON p.id = c.product_id
-		LEFT JOIN product_images pi ON pi.product_id = p.id
-		LEFT JOIN sizes s ON s.id = c.size_id
-		LEFT JOIN variants v ON v.id = c.variant_id
+		JOIN products p ON p.id=c.product_id
+		LEFT JOIN product_images pi ON pi.product_id=p.id
+		LEFT JOIN sizes s ON s.id=c.size_id
+		LEFT JOIN variants v ON v.id=c.variant_id
 		WHERE c.id=$1
-	`
-
-	var item CartItemResponse
-	err = db.QueryRow(ctx, detailQuery, cartID).Scan(
+	`, cartID).Scan(
 		&item.ProductID, &item.Title, &item.BasePrice,
-		&item.Image, &item.Size, &item.Variant, &item.Quantity,
-		&item.Subtotal,
+		&item.Image, &item.Size, &item.Variant,
+		&item.Quantity, &item.Subtotal,
 	)
 	if err != nil {
 		return CartItemResponse{}, err
@@ -567,7 +554,9 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 	return item, nil
 }
 
-func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, error) {
+func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, float64, error) {
+	ctx := context.Background()
+
 	query := `
 		SELECT 
 			c.product_id,
@@ -577,7 +566,8 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, error) {
 			COALESCE(s.name, '') AS size,
 			COALESCE(v.name, '') AS variant,
 			c.quantity,
-			( (p.base_price + COALESCE(s.additional_price, 0)) * c.quantity ) AS subtotal
+			((p.base_price + COALESCE(s.additional_price, 0) + COALESCE(v.additional_price, 0)) * c.quantity) AS subtotal,
+			SUM((p.base_price + COALESCE(s.additional_price, 0) + COALESCE(v.additional_price, 0)) * c.quantity) OVER () AS total_cart
 		FROM carts c
 		JOIN products p ON p.id = c.product_id
 		LEFT JOIN LATERAL (
@@ -593,13 +583,15 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, error) {
 		ORDER BY c.created_at ASC
 	`
 
-	rows, err := db.Query(context.Background(), query, userID)
+	rows, err := db.Query(ctx, query, userID)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
 	var items []CartItemResponse
+	var total float64
+
 	for rows.Next() {
 		var item CartItemResponse
 		if err := rows.Scan(
@@ -611,12 +603,14 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, error) {
 			&item.Variant,
 			&item.Quantity,
 			&item.Subtotal,
+			&total,
 		); err != nil {
-			return nil, err
+			return nil, 0, err
 		}
 		items = append(items, item)
 	}
-	return items, nil
+
+	return items, total, nil
 }
 
 type OrderTransactionRequest struct {
