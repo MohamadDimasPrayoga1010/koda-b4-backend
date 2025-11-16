@@ -42,16 +42,31 @@ type ProfileRequest struct {
 }
 
 type ProfileUser struct {
-	ID        int64     `json:"id" db:"id"`
-	Image     *string   `json:"image,omitempty" db:"image"`
-	Phone     *string   `json:"phone,omitempty" db:"phone"`
-	Address   *string   `json:"address,omitempty" db:"address"`
-	UserID    int64     `json:"user_id" db:"user_id"`
-	CreatedAt time.Time `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time `json:"updated_at" db:"updated_at"`
+	ID        int64      `json:"id" db:"id"`
+	Image     *string    `json:"image,omitempty" db:"image"`
+	Phone     *string    `json:"phone,omitempty" db:"phone"`
+	Address   *string    `json:"address,omitempty" db:"address"`
+	UserID    int64      `json:"user_id" db:"user_id"`
+	Fullname  *string    `json:"fullname,omitempty" db:"fullname"`
+	Email     *string    `json:"email,omitempty" db:"email"`
+	CreatedAt time.Time  `json:"created_at" db:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at" db:"updated_at"`
 }
 
-func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address string, fileHeader *multipart.FileHeader) (*ProfileUser, error) {
+type ProfileResponse struct {
+	ID        int64      `json:"id"`
+	Fullname  string     `json:"fullname"`
+	Email     string     `json:"email"`
+	Image     *string    `json:"image,omitempty"`
+	Phone     *string    `json:"phone,omitempty"`
+	Address   *string    `json:"address,omitempty"`
+	UserID    int64      `json:"user_id"`
+	CreatedAt time.Time  `json:"created_at"`
+	UpdatedAt time.Time  `json:"updated_at"`
+}
+
+
+func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address, fullname, email string, fileHeader *multipart.FileHeader) (*ProfileUser, error) {
 	ctx := context.Background()
 
 	var imagePath *string
@@ -95,7 +110,6 @@ func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address string, fileHe
 	}
 
 	if existingID > 0 {
-
 		_, err := db.Exec(ctx, `
 			UPDATE profile
 			SET phone = COALESCE(NULLIF($1, ''), phone),
@@ -108,11 +122,23 @@ func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address string, fileHe
 			return nil, err
 		}
 	} else {
-
 		_, err := db.Exec(ctx, `
 			INSERT INTO profile (phone, address, image, user_id)
-			VALUES ($1,$2,$3,$4)
+			VALUES ($1, $2, $3, $4)
 		`, phone, address, imagePath, userID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if fullname != "" || email != "" {
+		_, err := db.Exec(ctx, `
+			UPDATE users
+			SET fullname = COALESCE(NULLIF($1, ''), fullname),
+				email = COALESCE(NULLIF($2, ''), email),
+				updated_at = NOW()
+			WHERE id = $3
+		`, fullname, email, userID)
 		if err != nil {
 			return nil, err
 		}
@@ -120,14 +146,28 @@ func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address string, fileHe
 
 	var profile ProfileUser
 	err = db.QueryRow(ctx, `
-		SELECT id, phone, address, image, user_id, created_at, updated_at
-		FROM profile
-		WHERE user_id=$1
-	`, userID).Scan(&profile.ID, &profile.Phone, &profile.Address, &profile.Image, &profile.UserID, &profile.CreatedAt, &profile.UpdatedAt)
+		SELECT p.id, p.phone, p.address, p.image, p.user_id, p.created_at, p.updated_at,
+		       u.fullname, u.email
+		FROM profile p
+		JOIN users u ON u.id = p.user_id
+		WHERE p.user_id=$1
+	`, userID).Scan(
+		&profile.ID,
+		&profile.Phone,
+		&profile.Address,
+		&profile.Image,
+		&profile.UserID,
+		&profile.CreatedAt,
+		&profile.UpdatedAt,
+		&profile.Fullname,
+		&profile.Email,
+	)
 	if err != nil {
 		return nil, err
 	}
 
 	return &profile, nil
 }
+
+
 
