@@ -820,7 +820,7 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 	err = tx.QueryRow(ctx, `
 		INSERT INTO transactions
 		(user_id, fullname, email, phone, address, payment_method_id, shipping_id, invoice_number, total, status, created_at, updated_at)
-		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',NOW(),NOW())
+		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'OnProgress',NOW(),NOW())
 		RETURNING id, created_at, updated_at
 	`, req.UserID, req.Fullname, req.Email, req.Phone, req.Address,
 		req.PaymentMethodID, req.ShippingID, invoice, total).Scan(&orderID, &createdAt, &updatedAt)
