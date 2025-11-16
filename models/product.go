@@ -615,6 +615,7 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) (CartResponse, error) {
 
 	query := `
 		SELECT 
+			c.id AS cart_id,         
 			c.product_id,
 			p.title,
 			p.base_price,
@@ -635,8 +636,8 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) (CartResponse, error) {
 		LEFT JOIN sizes s ON s.id = c.size_id
 		LEFT JOIN variants v ON v.id = c.variant_id
 		WHERE c.user_id = $1
-		GROUP BY c.product_id, p.title, p.base_price, pi.image, s.name, v.name
-		ORDER BY c.product_id ASC
+		GROUP BY c.id, c.product_id, p.title, p.base_price, pi.image, s.name, v.name
+		ORDER BY c.id ASC
 	`
 
 	rows, err := db.Query(ctx, query, userID)
@@ -651,6 +652,7 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) (CartResponse, error) {
 	for rows.Next() {
 		var item CartItemResponse
 		if err := rows.Scan(
+			&item.ID,         
 			&item.ProductID,
 			&item.Title,
 			&item.BasePrice,
