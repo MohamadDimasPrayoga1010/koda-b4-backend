@@ -15,7 +15,7 @@ func ProductRoutes(r *gin.Engine, pg *pgxpool.Pool) {
 	admin.Use(middlewares.AuthMiddleware("admin"))
 	{
 		admin.POST("/products", pc.CreateProduct)
-		admin.GET("/products", pc.GetProduct)
+		admin.GET("/products", pc.GetProducts)
 		admin.GET("/products/:id", pc.GetProductByID)
 		admin.PATCH("/products/:id", pc.UpdateProduct)
 		admin.DELETE("/products/:id", pc.DeleteProduct)
