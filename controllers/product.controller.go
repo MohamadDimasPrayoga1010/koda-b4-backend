@@ -188,6 +188,13 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 	if err == nil && cached != "" {
 		var products []models.ProductResponse
 		json.Unmarshal([]byte(cached), &products)
+
+		prev := page - 1
+		if prev < 1 {
+			prev = 1
+		}
+		next := page + 1
+
 		ctx.JSON(http.StatusOK, models.Response{
 			Success: true,
 			Message: "Products fetched from cache",
@@ -195,12 +202,14 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 				"page":     page,
 				"limit":    limit,
 				"products": products,
+				"prev":     prev,
+				"next":     next,
 			},
 		})
 		return
 	}
 
-	products, err := models.GetProducts(pc.DB, page, limit, search, sortBy, order)
+	products, total, err := models.GetProducts(pc.DB, page, limit, search, sortBy, order)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, models.Response{
 			Success: false,
@@ -213,6 +222,16 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 	dataJSON, _ := json.Marshal(products)
 	libs.RedisClient.Set(libs.Ctx, cacheKey, dataJSON, 10*time.Minute)
 
+	prev := page - 1
+	if prev < 1 {
+		prev = 1
+	}
+	lastPage := (total + limit - 1) / limit
+	next := page + 1
+	if next > lastPage {
+		next = lastPage
+	}
+
 	ctx.JSON(http.StatusOK, models.Response{
 		Success: true,
 		Message: "Products fetched successfully",
@@ -220,9 +239,13 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 			"page":     page,
 			"limit":    limit,
 			"products": products,
+			"prev":     prev,
+			"next":     next,
+			"total":    total,
 		},
 	})
 }
+
 
 // GetProductByID godoc
 // @Summary Get a product by ID
@@ -374,12 +397,66 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 // @Failure 500 {object} models.Response
 // @Router /admin/products/{id} [delete]
 func (pc *ProductController) DeleteProduct(ctx *gin.Context) {
-	id := ctx.Param("id")
-
-	query := `DELETE FROM products WHERE id = $1`
-
-	result, err := pc.DB.Exec(context.Background(), query, id)
+	idStr := ctx.Param("id")
+	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid product ID",
+		})
+		return
+	}
+
+	ctxDB := context.Background()
+
+	tx, err := pc.DB.Begin(ctxDB)
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to start transaction",
+			Data:    err.Error(),
+		})
+		return
+	}
+	defer func() {
+		if p := recover(); p != nil {
+			tx.Rollback(ctxDB)
+			panic(p)
+		}
+	}()
+
+	childTables := []string{
+		"product_variants",
+		"product_sizes",
+		"product_images",
+		"products_categories",
+		"carts",
+		"recommended_products",
+	}
+
+	for _, table := range childTables {
+		var query string
+		if table == "recommended_products" {
+			query = fmt.Sprintf("DELETE FROM %s WHERE product_id=$1 OR recommended_id=$1", table)
+		} else {
+			query = fmt.Sprintf("DELETE FROM %s WHERE product_id=$1", table)
+		}
+
+		_, err := tx.Exec(ctxDB, query, id)
+		if err != nil {
+			tx.Rollback(ctxDB)
+			ctx.JSON(500, models.Response{
+				Success: false,
+				Message: fmt.Sprintf("Failed to delete from %s", table),
+				Data:    err.Error(),
+			})
+			return
+		}
+	}
+
+	result, err := tx.Exec(ctxDB, `DELETE FROM products WHERE id=$1`, id)
+	if err != nil {
+		tx.Rollback(ctxDB)
 		ctx.JSON(500, models.Response{
 			Success: false,
 			Message: "Failed to delete product",
@@ -389,9 +466,20 @@ func (pc *ProductController) DeleteProduct(ctx *gin.Context) {
 	}
 
 	if result.RowsAffected() == 0 {
+		tx.Rollback(ctxDB)
 		ctx.JSON(404, models.Response{
 			Success: false,
 			Message: "Product not found",
+		})
+		return
+	}
+
+
+	if err := tx.Commit(ctxDB); err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to commit transaction",
+			Data:    err.Error(),
 		})
 		return
 	}
@@ -401,6 +489,7 @@ func (pc *ProductController) DeleteProduct(ctx *gin.Context) {
 		Message: "Product deleted successfully",
 	})
 }
+
 
 // GetProductImages godoc
 // @Summary Get all images of a product
