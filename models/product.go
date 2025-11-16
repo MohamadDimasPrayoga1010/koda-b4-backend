@@ -504,6 +504,18 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 	ctx := context.Background()
 	var cartID int64
 
+	var sizeValue, variantValue interface{}
+	if sizeID != nil {
+		sizeValue = *sizeID
+	} else {
+		sizeValue = nil
+	}
+	if variantID != nil {
+		variantValue = *variantID
+	} else {
+		variantValue = nil
+	}
+
 	var stock int
 	err := db.QueryRow(ctx, `SELECT stock FROM products WHERE id=$1`, productID).Scan(&stock)
 	if err != nil {
@@ -520,7 +532,7 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 		AND COALESCE(size_id,0)=COALESCE($3,0)
 		AND COALESCE(variant_id,0)=COALESCE($4,0)
 		LIMIT 1
-	`, userID, productID, sizeID, variantID).Scan(&cartID, &existingQty)
+	`, userID, productID, sizeValue, variantValue).Scan(&cartID, &existingQty)
 
 	if err == nil {
 		newQty := existingQty + quantity
@@ -536,6 +548,7 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 			INSERT INTO carts (user_id, product_id, size_id, variant_id, quantity, created_at, updated_at)
 			VALUES ($1,$2,$3,$4,$5,NOW(),NOW()) RETURNING id
 		`, userID, productID, sizeID, variantID, quantity).Scan(&cartID)
+
 		if err != nil {
 			return CartItemResponse{}, err
 		}
@@ -549,8 +562,8 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 			p.title,
 			p.base_price,
 			COALESCE(pi.image,'') AS image,
-			COALESCE(s.name,'') AS size_name,
-			COALESCE(v.name,'') AS variant_name,
+			COALESCE(s.name,'') AS size,
+			COALESCE(v.name,'') AS variant,
 			c.quantity,
 			(p.base_price + COALESCE(s.additional_price,0) + COALESCE(v.additional_price,0)) * c.quantity AS subtotal
 		FROM carts c
@@ -577,14 +590,13 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 	return item, nil
 }
 
-func DeleteCart(db *pgxpool.Pool, cartID int64, userID int64) error {
+func DeleteCart(db *pgxpool.Pool, userID int64, cartID int64) error {
 	ctx := context.Background()
 
 	res, err := db.Exec(ctx, `
 		DELETE FROM carts 
 		WHERE id=$1 AND user_id=$2
-	`, cartID, userID)
-
+	`, cartID, userID) 
 	if err != nil {
 		return err
 	}
@@ -595,6 +607,7 @@ func DeleteCart(db *pgxpool.Pool, cartID int64, userID int64) error {
 
 	return nil
 }
+
 
 
 func GetCartByUser(db *pgxpool.Pool, userID int64) (CartResponse, error) {

@@ -1205,14 +1205,7 @@ func (pc *ProductController) AddToCart(ctx *gin.Context) {
 	for _, c := range carts {
 		item, err := models.AddOrUpdateCart(pc.DB, userID, c.ProductID, c.SizeID, c.VariantID, c.Quantity)
 		if err != nil {
-			if err.Error() == "stock not enough for product" {
-				ctx.JSON(http.StatusBadRequest, models.Response{
-					Success: false,
-					Message: err.Error(),
-				})
-				return
-			}
-			ctx.JSON(http.StatusInternalServerError, models.Response{
+			ctx.JSON(http.StatusBadRequest, models.Response{
 				Success: false,
 				Message: err.Error(),
 			})
@@ -1227,6 +1220,7 @@ func (pc *ProductController) AddToCart(ctx *gin.Context) {
 		Data:    results,
 	})
 }
+
 
 func (pc *ProductController) DeleteCart(ctx *gin.Context) {
 
