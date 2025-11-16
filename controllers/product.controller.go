@@ -799,12 +799,20 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 		var products []models.ProductResponseFilter
 		json.Unmarshal([]byte(cached), &products)
 
+		prevPage := page - 1
+		if prevPage < 1 {
+			prevPage = 1
+		}
+		nextPage := page + 1
+
 		ctx.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"message": "Filtered products fetched (cache)",
-			"page":    page,
-			"limit":   limit,
-			"data":    products,
+			"success":   true,
+			"message":   "Filtered products fetched (cache)",
+			"page":      page,
+			"limit":     limit,
+			"prev_page": prevPage,
+			"next_page": nextPage,
+			"data":      products,
 		})
 		return
 	}
@@ -855,7 +863,6 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 		args = append(args, *filter.PriceMax)
 		argIndex++
 	}
-
 	if searchQuery != "" {
 		query += fmt.Sprintf(" AND (LOWER(p.title) LIKE LOWER($%d))", argIndex)
 		args = append(args, "%"+searchQuery+"%")
@@ -942,14 +949,23 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 	dataJSON, _ := json.Marshal(products)
 	libs.RedisClient.Set(libs.Ctx, cacheKey, dataJSON, 10*time.Minute)
 
+	prevPage := page - 1
+	if prevPage < 1 {
+		prevPage = 1
+	}
+	nextPage := page + 1
+
 	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Filtered products fetched successfully",
-		"page":    page,
-		"limit":   limit,
-		"data":    products,
+		"success":   true,
+		"message":   "Filtered products fetched successfully",
+		"page":      page,
+		"limit":     limit,
+		"prev_page": prevPage,
+		"next_page": nextPage,
+		"data":      products,
 	})
 }
+
 
 
 // GetProductDetail godoc
