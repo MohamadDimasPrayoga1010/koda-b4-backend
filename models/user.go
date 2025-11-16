@@ -3,10 +3,12 @@ package models
 import (
 	"context"
 	"errors"
+	"fmt"
 	"io"
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/jackc/pgx/v5"
@@ -54,15 +56,19 @@ func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address, fullname, ema
 		if fileHeader.Size > 2*1024*1024 {
 			return ProfileResponse{}, errors.New("file size exceeds 2MB")
 		}
-		ext := filepath.Ext(fileHeader.Filename)
+		ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
 		if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
 			return ProfileResponse{}, errors.New("file type must be jpg, jpeg, or png")
 		}
 
 		uploadDir := "./uploads/profile"
-		os.MkdirAll(uploadDir, os.ModePerm)
-		filename := filepath.Join(uploadDir, filepath.Base(fileHeader.Filename))
-		imagePath = &filename
+		if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+			return ProfileResponse{}, err
+		}
+
+		filename := fmt.Sprintf("%d_%s", time.Now().UnixNano(), filepath.Base(fileHeader.Filename))
+		filePath := filepath.Join(uploadDir, filename)
+		imagePath = &filePath
 
 		src, err := fileHeader.Open()
 		if err != nil {
@@ -70,7 +76,7 @@ func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address, fullname, ema
 		}
 		defer src.Close()
 
-		dst, err := os.Create(filename)
+		dst, err := os.Create(filePath)
 		if err != nil {
 			return ProfileResponse{}, err
 		}
