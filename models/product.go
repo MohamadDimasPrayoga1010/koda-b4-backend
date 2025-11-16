@@ -376,10 +376,34 @@ func GetProductByID(db *pgxpool.Pool, productID int64) (ProductResponse, error) 
 	return p, nil
 }
 
-func UpdateProduct(db *pgxpool.Pool, productID int64, req ProductRequest, imageFiles []string) (ProductResponse, error) {
+func UpdateProduct(db *pgxpool.Pool, productID int64, req ProductRequest, imageFiles []string, old ProductResponse) (ProductResponse, error) {
 	ctx := context.Background()
-	var product ProductResponse
-	var categoryName string
+	product := old
+
+	title := old.Title
+	if req.Title != "" {
+		title = req.Title
+	}
+
+	description := old.Description
+	if req.Description != "" {
+		description = req.Description
+	}
+
+	basePrice := old.BasePrice
+	if req.BasePrice != 0 {
+		basePrice = req.BasePrice
+	}
+
+	stock := old.Stock
+	if req.Stock != 0 {
+		stock = req.Stock
+	}
+
+	categoryID := old.Category.ID
+	if req.CategoryID != 0 {
+		categoryID = req.CategoryID
+	}
 
 	updateQuery := `
 		UPDATE products
@@ -389,7 +413,7 @@ func UpdateProduct(db *pgxpool.Pool, productID int64, req ProductRequest, imageF
 		RETURNING id, title, description, base_price, stock, category_id, created_at, updated_at
 	`
 	err := db.QueryRow(ctx, updateQuery,
-		req.Title, req.Description, req.BasePrice, req.Stock, req.CategoryID, productID,
+		title, description, basePrice, stock, categoryID, productID,
 	).Scan(
 		&product.ID, &product.Title, &product.Description,
 		&product.BasePrice, &product.Stock, &product.Category.ID,
@@ -399,6 +423,7 @@ func UpdateProduct(db *pgxpool.Pool, productID int64, req ProductRequest, imageF
 		return product, err
 	}
 
+	var categoryName string
 	err = db.QueryRow(ctx, `SELECT name FROM categories WHERE id=$1`, product.Category.ID).Scan(&categoryName)
 	if err == nil {
 		product.Category.Name = categoryName
@@ -409,7 +434,7 @@ func UpdateProduct(db *pgxpool.Pool, productID int64, req ProductRequest, imageF
 		for _, vID := range req.VariantID {
 			db.Exec(ctx, `INSERT INTO product_variants (product_id, variant_id) VALUES ($1, $2)`, product.ID, vID)
 		}
-
+		product.Variants = []Variant{}
 		rows, _ := db.Query(ctx, `SELECT id, name, additional_price FROM variants WHERE id = ANY($1)`, req.VariantID)
 		defer rows.Close()
 		for rows.Next() {
@@ -417,32 +442,45 @@ func UpdateProduct(db *pgxpool.Pool, productID int64, req ProductRequest, imageF
 			rows.Scan(&v.ID, &v.Name, &v.AdditionalPrice)
 			product.Variants = append(product.Variants, v)
 		}
+	} else {
+		product.Variants = old.Variants
 	}
 
-	db.Exec(ctx, `DELETE FROM product_sizes WHERE product_id=$1`, product.ID)
-	for _, sizeID := range req.Sizes {
-		db.Exec(ctx, `INSERT INTO product_sizes (product_id, size_id) VALUES ($1, $2)`, product.ID, sizeID)
+	if len(req.Sizes) > 0 {
+		db.Exec(ctx, `DELETE FROM product_sizes WHERE product_id=$1`, product.ID)
+		product.Sizes = []Size{}
+		for _, sizeID := range req.Sizes {
+			db.Exec(ctx, `INSERT INTO product_sizes (product_id, size_id) VALUES ($1, $2)`, product.ID, sizeID)
 
-		var s Size
-		err := db.QueryRow(ctx, `SELECT id, name, additional_price FROM sizes WHERE id=$1`, sizeID).
-			Scan(&s.ID, &s.Name, &s.AdditionalPrice)
-		if err == nil {
-			product.Sizes = append(product.Sizes, s)
+			var s Size
+			err := db.QueryRow(ctx, `SELECT id, name, additional_price FROM sizes WHERE id=$1`, sizeID).
+				Scan(&s.ID, &s.Name, &s.AdditionalPrice)
+			if err == nil {
+				product.Sizes = append(product.Sizes, s)
+			}
 		}
+	} else {
+		product.Sizes = old.Sizes
 	}
 
-	db.Exec(ctx, `DELETE FROM product_images WHERE product_id=$1`, product.ID)
-	for _, filename := range imageFiles {
-		db.Exec(ctx, `INSERT INTO product_images (product_id, image, updated_at) VALUES ($1, $2, NOW())`, product.ID, filename)
-		product.Images = append(product.Images, ProductImage{
-			ProductID: product.ID,
-			Image:     filename,
-			UpdatedAt: time.Now(),
-		})
+	if len(imageFiles) > 0 {
+		db.Exec(ctx, `DELETE FROM product_images WHERE product_id=$1`, product.ID)
+		product.Images = []ProductImage{}
+		for _, filename := range imageFiles {
+			db.Exec(ctx, `INSERT INTO product_images (product_id, image, updated_at) VALUES ($1, $2, NOW())`, product.ID, filename)
+			product.Images = append(product.Images, ProductImage{
+				ProductID: product.ID,
+				Image:     filename,
+				UpdatedAt: time.Now(),
+			})
+		}
+	} else {
+		product.Images = old.Images
 	}
 
 	return product, nil
 }
+
 
 type ProductFilter struct {
 	Categories []int64  `json:"categories" form:"categories"`

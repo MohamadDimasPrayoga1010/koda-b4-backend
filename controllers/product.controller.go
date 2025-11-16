@@ -327,6 +327,16 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 		return
 	}
 
+	productOld, err := models.GetProductByID(pc.DB, productID)
+	if err != nil {
+		ctx.JSON(404, models.Response{
+			Success: false,
+			Message: "Product not found",
+			Data:    err.Error(),
+		})
+		return
+	}
+
 	uploadDir := "./uploads/products"
 	os.MkdirAll(uploadDir, os.ModePerm)
 
@@ -368,7 +378,7 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 		savedFiles = append(savedFiles, filename)
 	}
 
-	product, err := models.UpdateProduct(pc.DB, productID, req, savedFiles)
+	product, err := models.UpdateProduct(pc.DB, productID, req, savedFiles, productOld)
 	if err != nil {
 		ctx.JSON(500, models.Response{
 			Success: false,
@@ -384,6 +394,7 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 		Data:    product,
 	})
 }
+
 
 // DeleteProduct godoc
 // @Summary Delete a product
