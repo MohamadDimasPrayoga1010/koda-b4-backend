@@ -51,17 +51,15 @@ func InitRedis() *redis.Client {
 	}
 
 	redisURL := os.Getenv("REDIS_URL")
-	password := os.Getenv("REDIS_PASSWORD")
 
 	if redisURL == "" {
 		fmt.Println("REDIS_URL not set, skipping Redis initialization")
 		return nil
 	}
 
-	options := &redis.Options{
-		Addr:     redisURL,
-		Password: password,
-		DB:       0,
+	options, err := redis.ParseURL(redisURL)
+	if err != nil {
+		log.Fatalf("Invalid redis URL: %v", err)
 	}
 
 	if os.Getenv("ENVIRONMENT") != "development" {
@@ -76,7 +74,7 @@ func InitRedis() *redis.Client {
 		log.Println("Connected to Redis successfully!")
 	}
 
-	_, err := client.Ping(Ctx).Result()
+	_, err = client.Ping(Ctx).Result()
 	if err != nil {
 		panic("Failed to connect to Redis: " + err.Error())
 	}
