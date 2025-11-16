@@ -80,14 +80,14 @@ type Variant struct {
 }
 
 type ProductRequest struct {
-	Title       string                  `form:"title" binding:"required"`
-	Description string                  `form:"description"`
-	BasePrice   float64                 `form:"base_price" binding:"required"`
-	Stock       int                     `form:"stock" binding:"required"`
-	CategoryID  int64                   `form:"category_id" binding:"required"`
-	VariantID   []int64                 `form:"variant_id"`
-	Sizes       []int64                 `form:"sizes"`
-	Images      []*multipart.FileHeader `form:"images"`
+    Title       string                  `form:"title"`
+    Description string                  `form:"description"`
+    BasePrice   float64                 `form:"base_price"`
+    Stock       int                     `form:"stock"`
+    CategoryID  int64                   `form:"category_id"`
+    VariantID   []int64                 `form:"variant_id"`
+    Sizes       []int64                 `form:"sizes"`
+    Images      []*multipart.FileHeader `form:"images"`
 }
 
 func CreateProduct(db *pgxpool.Pool, req ProductRequest, imageFiles []string) (ProductResponse, error) {
