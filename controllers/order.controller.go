@@ -203,24 +203,41 @@ func (tc *TransactionController) DeleteTransaction(ctx *gin.Context) {
 func (tc *TransactionController) GetHistoryTransactions(ctx *gin.Context) {
 	userIDValue, exists := ctx.Get("userID")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, gin.H{
-			"success": false,
-			"message": "Unauthorized",
+		ctx.JSON(http.StatusUnauthorized, models.Response{
+			Success: false,
+			Message: "User not authenticated",
 		})
 		return
 	}
 
-	userID, ok := userIDValue.(int64)
-	if !ok {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"success": false,
-			"message": "Invalid user ID",
+	var userID int64
+	switch v := userIDValue.(type) {
+	case int64:
+		userID = v
+	case int:
+		userID = int64(v)
+	case float64:
+		userID = int64(v)
+	case string:
+		tmp, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, models.Response{
+				Success: false,
+				Message: "Invalid user ID",
+			})
+			return
+		}
+		userID = tmp
+	default:
+		ctx.JSON(http.StatusBadRequest, models.Response{
+			Success: false,
+			Message: "Invalid user ID",
 		})
 		return
 	}
 
 	monthStr := ctx.DefaultQuery("month", "0")
-	status := ctx.DefaultQuery("status", "OnProgress")
+	status := ctx.DefaultQuery("status", "")
 	pageStr := ctx.DefaultQuery("page", "1")
 	limitStr := ctx.DefaultQuery("limit", "10")
 
@@ -236,17 +253,18 @@ func (tc *TransactionController) GetHistoryTransactions(ctx *gin.Context) {
 
 	histories, err := models.GetHistoryTransactions(tc.DB, userID, status, month, page, limit)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
+		ctx.JSON(http.StatusInternalServerError, models.Response{
+			Success: false,
+			Message: "Failed to fetch history transactions",
+			Data:    err.Error(),
 		})
 		return
 	}
 
-	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "History transactions fetched successfully",
-		"data":    histories,
+	ctx.JSON(http.StatusOK, models.Response{
+		Success: true,
+		Message: "History transactions fetched successfully",
+		Data:    histories,
 	})
 }
 
@@ -259,8 +277,26 @@ func (tc *TransactionController) GetHistoryDetailById(ctx *gin.Context) {
 		})
 		return
 	}
-	userID, ok := userIDValue.(int64)
-	if !ok {
+	
+	var userID int64
+	switch v := userIDValue.(type) {
+	case int64:
+		userID = v
+	case int:
+		userID = int64(v)
+	case float64:
+		userID = int64(v)
+	case string:
+		tmp, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, models.Response{
+				Success: false,
+				Message: "Invalid user ID",
+			})
+			return
+		}
+		userID = tmp
+	default:
 		ctx.JSON(http.StatusBadRequest, models.Response{
 			Success: false,
 			Message: "Invalid user ID",
@@ -279,9 +315,9 @@ func (tc *TransactionController) GetHistoryDetailById(ctx *gin.Context) {
 
 	history, err := models.GetHistoryDetail(tc.DB, transactionID, userID)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": err.Error(),
+		ctx.JSON(http.StatusInternalServerError, models.Response{
+			Success: false,
+			Message: err.Error(),
 		})
 		return
 	}

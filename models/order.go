@@ -177,6 +177,7 @@ type HistoryTransaction struct {
 	CreatedAt     time.Time `json:"created_at"`
 }
 
+
 func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month, page, limit int) ([]HistoryTransaction, error) {
 	ctx := context.Background()
 	offset := (page - 1) * limit
@@ -194,23 +195,26 @@ func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month
 	LEFT JOIN products p ON p.id = ti.product_id
 	LEFT JOIN product_images pi ON pi.product_id = p.id
 	WHERE t.user_id = $1
-	  AND t.status ILIKE $2
-`
+	`
+	params := []interface{}{userID}
 
-	queriParams := []interface{}{userID, status}
+	if status != "" {
+		query += " AND t.status ILIKE $" + strconv.Itoa(len(params)+1)
+		params = append(params, status)
+	}
 
 	if month >= 1 && month <= 12 {
-		query += " AND EXTRACT(MONTH FROM t.created_at) = $" + strconv.Itoa(len(queriParams)+1)
-		queriParams = append(queriParams, month)
+		query += " AND EXTRACT(MONTH FROM t.created_at) = $" + strconv.Itoa(len(params)+1)
+		params = append(params, month)
 	}
 
 	query += `
-		GROUP BY t.id, t.invoice_number, t.total, t.status, t.created_at
+		GROUP BY t.id
 		ORDER BY t.created_at DESC
-		LIMIT $` + strconv.Itoa(len(queriParams)+1) + " OFFSET $" + strconv.Itoa(len(queriParams)+2)
-	queriParams = append(queriParams, limit, offset)
+		LIMIT $` + strconv.Itoa(len(params)+1) + " OFFSET $" + strconv.Itoa(len(params)+2)
+	params = append(params, limit, offset)
 
-	rows, err := db.Query(ctx, query, queriParams...)
+	rows, err := db.Query(ctx, query, params...)
 	if err != nil {
 		return nil, err
 	}
@@ -227,6 +231,7 @@ func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month
 
 	return histories, nil
 }
+
 
 
 type HistoryDetail struct {
