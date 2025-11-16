@@ -40,6 +40,21 @@ type ProductResponse struct {
 	Sizes       []Size          `json:"sizes,omitempty"`
 }
 
+type ProductResponseFilter struct {
+	ID          int64                  `json:"id"`
+	Title       string                 `json:"title"`
+	Description string                 `json:"description"`
+	BasePrice   float64                `json:"base_price"`
+	Stock       int                    `json:"stock"`
+	CategoryID  int64                  `json:"category_id"`
+	Image       string                 `json:"image"`
+	Sizes       []string               `json:"sizes"`
+	Variants    []map[string]interface{} `json:"variants"`
+	CreatedAt   time.Time              `json:"created_at"`
+	UpdatedAt   time.Time              `json:"updated_at"`
+}
+
+
 type CategoryProduct struct {
 	ID   int64  `json:"id"`
 	Name string `json:"name"`

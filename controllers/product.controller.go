@@ -40,125 +40,123 @@ type ProductController struct {
 // @Failure 500 {object} models.Response
 // @Router /admin/products [post]
 func (pc *ProductController) CreateProduct(ctx *gin.Context) {
-    var req models.ProductRequest
+	var req models.ProductRequest
 
-    if err := ctx.ShouldBind(&req); err != nil {
-        ctx.JSON(400, models.Response{
-            Success: false,
-            Message: "Invalid form-data",
-            Data:    err.Error(),
-        })
-        return
-    }
+	if err := ctx.ShouldBind(&req); err != nil {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid form-data",
+			Data:    err.Error(),
+		})
+		return
+	}
 
-    if len(req.VariantID) == 0 {
-        raw := ctx.PostForm("variant_id")
-        if raw != "" {
-            for _, v := range strings.Split(raw, ",") {
-                v = strings.TrimSpace(v)
-                if v == "" {
-                    continue
-                }
-                if id, err := strconv.ParseInt(v, 10, 64); err == nil {
-                    req.VariantID = append(req.VariantID, id)
-                }
-            }
-        }
-    }
+	if len(req.VariantID) == 0 {
+		raw := ctx.PostForm("variant_id")
+		if raw != "" {
+			for _, v := range strings.Split(raw, ",") {
+				v = strings.TrimSpace(v)
+				if v == "" {
+					continue
+				}
+				if id, err := strconv.ParseInt(v, 10, 64); err == nil {
+					req.VariantID = append(req.VariantID, id)
+				}
+			}
+		}
+	}
 
-    if len(req.Sizes) == 0 {
-        raw := ctx.PostForm("sizes")
-        if raw != "" {
-            for _, s := range strings.Split(raw, ",") {
-                s = strings.TrimSpace(s)
-                if s == "" {
-                    continue
-                }
-                if id, err := strconv.ParseInt(s, 10, 64); err == nil {
-                    req.Sizes = append(req.Sizes, id)
-                }
-            }
-        }
-    }
+	if len(req.Sizes) == 0 {
+		raw := ctx.PostForm("sizes")
+		if raw != "" {
+			for _, s := range strings.Split(raw, ",") {
+				s = strings.TrimSpace(s)
+				if s == "" {
+					continue
+				}
+				if id, err := strconv.ParseInt(s, 10, 64); err == nil {
+					req.Sizes = append(req.Sizes, id)
+				}
+			}
+		}
+	}
 
 	contains := func(arr []string, s string) bool {
-        for _, v := range arr {
-            if v == s {
-                return true
-            }
-        }
-        return false
-    }
+		for _, v := range arr {
+			if v == s {
+				return true
+			}
+		}
+		return false
+	}
 
-    maxSize := int64(2 * 1024 * 1024) 
-    allowedExts := []string{".jpg", ".jpeg", ".png"}
+	maxSize := int64(2 * 1024 * 1024)
+	allowedExts := []string{".jpg", ".jpeg", ".png"}
 
-    uploadDir := "./uploads/products"
-    os.MkdirAll(uploadDir, os.ModePerm)
+	uploadDir := "./uploads/products"
+	os.MkdirAll(uploadDir, os.ModePerm)
 
-    savedFiles := []string{}
+	savedFiles := []string{}
 
-    files := req.Images
-    for _, file := range files {
+	files := req.Images
+	for _, file := range files {
 
-        if file.Size > maxSize {
-            ctx.JSON(400, models.Response{
-                Success: false,
-               Message: "File too large(max 2mb): " + file.Filename,
-            })
-            return
-        }
+		if file.Size > maxSize {
+			ctx.JSON(400, models.Response{
+				Success: false,
+				Message: "File too large(max 2mb): " + file.Filename,
+			})
+			return
+		}
 
-        ext := strings.ToLower(filepath.Ext(file.Filename))
-        if !contains(allowedExts, ext) {
-            ctx.JSON(400, models.Response{
-                Success: false,
-               Message: "Invalid file type(only png, jpg, jpeg): " + file.Filename,
-            })
-            return
-        }
+		ext := strings.ToLower(filepath.Ext(file.Filename))
+		if !contains(allowedExts, ext) {
+			ctx.JSON(400, models.Response{
+				Success: false,
+				Message: "Invalid file type(only png, jpg, jpeg): " + file.Filename,
+			})
+			return
+		}
 
-        name := strings.TrimSuffix(file.Filename, ext)
-        name = strings.ReplaceAll(name, " ", "_")
+		name := strings.TrimSuffix(file.Filename, ext)
+		name = strings.ReplaceAll(name, " ", "_")
 
-        filename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), name, ext)
-        fullPath := filepath.Join(uploadDir, filename)
+		filename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), name, ext)
+		fullPath := filepath.Join(uploadDir, filename)
 
-        if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
-            ctx.JSON(500, models.Response{
-                Success: false,
-                Message: "Failed to save file",
-                Data:    err.Error(),
-            })
-            return
-        }
+		if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
+			ctx.JSON(500, models.Response{
+				Success: false,
+				Message: "Failed to save file",
+				Data:    err.Error(),
+			})
+			return
+		}
 
-        savedFiles = append(savedFiles, filename)
-    }
+		savedFiles = append(savedFiles, filename)
+	}
 
+	product, err := models.CreateProduct(pc.DB, req, savedFiles)
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to create product",
+			Data:    err.Error(),
+		})
+		return
+	}
 
-    product, err := models.CreateProduct(pc.DB, req, savedFiles)
-    if err != nil {
-        ctx.JSON(500, models.Response{
-            Success: false,
-            Message: "Failed to create product",
-            Data:    err.Error(),
-        })
-        return
-    }
+	iter := libs.RedisClient.Scan(libs.Ctx, 0, "products:*", 0).Iterator()
+	for iter.Next(libs.Ctx) {
+		libs.RedisClient.Del(libs.Ctx, iter.Val())
+	}
 
-    iter := libs.RedisClient.Scan(libs.Ctx, 0, "products:*", 0).Iterator()
-    for iter.Next(libs.Ctx) {
-        libs.RedisClient.Del(libs.Ctx, iter.Val())
-    }
-
-    ctx.JSON(201, models.Response{
-        Success: true,
-        Message: "Product created successfully",
-        Data:    product,
-    })
+	ctx.JSON(201, models.Response{
+		Success: true,
+		Message: "Product created successfully",
+		Data:    product,
+	})
 }
-
 
 // GetProduct godoc
 // @Summary Get list of products
@@ -226,8 +224,6 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 	})
 }
 
-
-
 // GetProductByID godoc
 // @Summary Get a product by ID
 // @Description Get detailed information of a product, including its variants, sizes, and images.
@@ -269,7 +265,6 @@ func (pc *ProductController) GetProductByID(ctx *gin.Context) {
 	})
 }
 
-
 // UpdateProduct godoc
 // @Summary Update a product
 // @Description Update product details including title, description, price, stock, category, variants, sizes, and images
@@ -294,7 +289,7 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 	productID, err := strconv.ParseInt(idParam, 10, 64)
 	if err != nil {
 		ctx.JSON(400, models.Response{
-			Success: false, 
+			Success: false,
 			Message: "Invalid product ID"})
 		return
 	}
@@ -302,9 +297,9 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 	var req models.ProductRequest
 	if err := ctx.ShouldBind(&req); err != nil {
 		ctx.JSON(400, models.Response{
-			Success: false, 
-			Message: "Invalid request body", 
-			Data: err.Error(),
+			Success: false,
+			Message: "Invalid request body",
+			Data:    err.Error(),
 		})
 		return
 	}
@@ -328,7 +323,7 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 	for _, file := range req.Images {
 		if file.Size > maxSize {
 			ctx.JSON(400, models.Response{
-				Success: false, 
+				Success: false,
 				Message: "File too large(max 2mb): " + file.Filename,
 			})
 			return
@@ -337,7 +332,7 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 		ext := strings.ToLower(filepath.Ext(file.Filename))
 		if !contains(allowedExts, ext) {
 			ctx.JSON(400, models.Response{
-				Success: false, 
+				Success: false,
 				Message: "Invalid file type(only png, jpg, jpeg): " + file.Filename})
 			return
 		}
@@ -353,17 +348,17 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 	product, err := models.UpdateProduct(pc.DB, productID, req, savedFiles)
 	if err != nil {
 		ctx.JSON(500, models.Response{
-			Success: false, 
-			Message: "Failed to update product", 
-			Data: err.Error(),
+			Success: false,
+			Message: "Failed to update product",
+			Data:    err.Error(),
 		})
 		return
 	}
 
 	ctx.JSON(200, models.Response{
-		Success: true, 
-		Message: "Product updated successfully", 
-		Data: product,
+		Success: true,
+		Message: "Product updated successfully",
+		Data:    product,
 	})
 }
 
@@ -761,12 +756,10 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 		}
 	}
 
-
 	if fav := ctx.Query("favorite"); fav != "" {
 		b := fav == "true"
 		filter.IsFavorite = &b
 	}
-
 
 	if pmin := ctx.Query("price_min"); pmin != "" {
 		if f, err := strconv.ParseFloat(pmin, 64); err == nil {
@@ -780,7 +773,7 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 	}
 
 	filter.SortBy = ctx.DefaultQuery("sortby", "name")
-	searchQuery := ctx.Query("q") 
+	searchQuery := ctx.Query("q")
 
 	pageStr := ctx.DefaultQuery("page", "1")
 	limitStr := ctx.DefaultQuery("limit", "10")
@@ -794,23 +787,40 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 	}
 	offset := (page - 1) * limit
 
-
 	query := `
 		SELECT 
-			p.id, 
-			p.title, 
-			p.description, 
+			p.id,
+			p.title,
+			p.description,
 			p.base_price,
 			p.stock,
 			p.category_id,
 			p.created_at,
 			p.updated_at,
-			COALESCE(pi.image, '') AS image,
-			COALESCE(json_agg(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL), '[]') AS sizes
+			COALESCE(
+				(SELECT pi.image FROM product_images pi WHERE pi.product_id = p.id LIMIT 1),
+				''
+			) AS image,
+			COALESCE((
+				SELECT json_agg(s.name)
+				FROM product_sizes ps
+				JOIN sizes s ON ps.size_id = s.id
+				WHERE ps.product_id = p.id
+			), '[]') AS sizes,
+			COALESCE((
+				SELECT json_agg(
+					json_build_object(
+						'id', v.id,
+						'name', v.name,
+						'additional_price', v.additional_price
+					)
+				)
+				FROM product_variants pv
+				JOIN variants v ON pv.variant_id = v.id
+				WHERE pv.product_id = p.id
+			), '[]') AS variants
+
 		FROM products p
-		LEFT JOIN product_images pi ON pi.product_id = p.id
-		LEFT JOIN product_sizes ps ON ps.product_id = p.id
-		LEFT JOIN sizes s ON s.id = ps.size_id
 		WHERE 1=1
 	`
 
@@ -822,30 +832,31 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 		args = append(args, filter.Categories)
 		argIndex++
 	}
+
 	if filter.IsFavorite != nil {
 		query += fmt.Sprintf(" AND p.is_favorite = $%d", argIndex)
 		args = append(args, *filter.IsFavorite)
 		argIndex++
 	}
+
 	if filter.PriceMin != nil {
 		query += fmt.Sprintf(" AND p.base_price >= $%d", argIndex)
 		args = append(args, *filter.PriceMin)
 		argIndex++
 	}
+
 	if filter.PriceMax != nil {
 		query += fmt.Sprintf(" AND p.base_price <= $%d", argIndex)
 		args = append(args, *filter.PriceMax)
 		argIndex++
 	}
 
-if searchQuery != "" {
-    query += fmt.Sprintf(" AND (LOWER(p.title) LIKE LOWER($%d) OR LOWER(p.description) LIKE LOWER($%d))", argIndex, argIndex+1)
-    args = append(args, "%"+searchQuery+"%")
-    args = append(args, "%"+searchQuery+"%")
-    argIndex += 2
-}
-
-	query += " GROUP BY p.id, pi.image"
+	if searchQuery != "" {
+		query += fmt.Sprintf(" AND (LOWER(p.title) LIKE LOWER($%d) OR LOWER(p.description) LIKE LOWER($%d))", argIndex, argIndex+1)
+		args = append(args, "%"+searchQuery+"%")
+		args = append(args, "%"+searchQuery+"%")
+		argIndex += 2
+	}
 
 	switch filter.SortBy {
 	case "baseprice":
@@ -867,65 +878,72 @@ if searchQuery != "" {
 	}
 	defer rows.Close()
 
-	var products []map[string]interface{}
-	for rows.Next() {
-		var id, categoryID int64
-		var title, desc, image string
-		var price float64
-		var stock int
-		var createdAt, updatedAt time.Time
-		var sizesRaw []byte
+	var products []models.ProductResponseFilter
 
-		if err := rows.Scan(&id, &title, &desc, &price, &stock, &categoryID, &createdAt, &updatedAt, &image, &sizesRaw); err != nil {
+	for rows.Next() {
+		var (
+			id          int64
+			title       string
+			desc        string
+			price       float64
+			stock       int
+			categoryID  int64
+			createdAt   time.Time
+			updatedAt   time.Time
+			image       string
+			sizesJSON   []byte
+			variantsJSON []byte
+		)
+
+		err := rows.Scan(
+			&id, &title, &desc, &price, &stock, &categoryID,
+			&createdAt, &updatedAt,
+			&image,
+			&sizesJSON,
+			&variantsJSON,
+		)
+		if err != nil {
 			continue
 		}
 
 		var sizes []string
-		json.Unmarshal(sizesRaw, &sizes)
-
-		var variantRows, _ = pc.DB.Query(context.Background(),
-			`SELECT v.id, v.name, v.additional_price
-			 FROM variants v
-			 JOIN product_variants pv ON pv.variant_id = v.id
-			 WHERE pv.product_id=$1`, id)
 		var variants []map[string]interface{}
-		for variantRows.Next() {
-			var vid int64
-			var vname string
-			var addPrice float64
-			if err := variantRows.Scan(&vid, &vname, &addPrice); err == nil {
-				variants = append(variants, map[string]interface{}{
-					"id":               vid,
-					"name":             vname,
-					"additional_price": addPrice,
-				})
-			}
-		}
-		variantRows.Close()
 
-		products = append(products, map[string]interface{}{
-			"id":          id,
-			"title":       title,
-			"description": desc,
-			"base_price":  price,
-			"stock":       stock,
-			"category_id": categoryID,
-			"image":       image,
-			"sizes":       sizes,
-			"variants":    variants,
-			"created_at":  createdAt,
-			"updated_at":  updatedAt,
+		json.Unmarshal(sizesJSON, &sizes)
+		json.Unmarshal(variantsJSON, &variants)
+
+		products = append(products, models.ProductResponseFilter{
+			ID:          id,
+			Title:       title,
+			Description: desc,
+			BasePrice:   price,
+			Stock:       stock,
+			CategoryID:  categoryID,
+			Image:       image,
+			Sizes:       sizes,
+			Variants:    variants,
+			CreatedAt:   createdAt,
+			UpdatedAt:   updatedAt,
 		})
 	}
 
+	nextPage := page + 1
+	prevPage := page - 1
+	if prevPage < 1 {
+		prevPage = 1
+	}
+
 	ctx.JSON(http.StatusOK, gin.H{
-		"success": true,
-		"message": "Data produk berhasil difilter",
-		"page":    page,
-		"limit":   limit,
-		"data":    products,
+		"success":  true,
+		"message":  "Data produk berhasil difilter",
+		"page":     page,
+		"limit":    limit,
+		"next":     nextPage,
+		"previous": prevPage,
+		"data":     products,
 	})
 }
+
 
 // GetProductDetail godoc
 // @Summary Get product detail by ID
@@ -1100,7 +1118,6 @@ func (pc *ProductController) GetProductDetail(ctx *gin.Context) {
 	})
 }
 
-
 // AddToCart godoc
 // @Summary Add items to cart
 // @Description Add or update multiple items in user's cart. If item exists, quantity will be updated.
@@ -1252,7 +1269,6 @@ func (pc *ProductController) GetCart(ctx *gin.Context) {
 	})
 }
 
-
 // CreateTransaction godoc
 // @Summary Create a new transaction
 // @Description Create a transaction for the authenticated user's cart items. User profile fields are used if not provided in request.
@@ -1391,5 +1407,3 @@ func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
 		Data:    order,
 	})
 }
-
-
