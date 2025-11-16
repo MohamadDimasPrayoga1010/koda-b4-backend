@@ -268,6 +268,19 @@ func (tc *TransactionController) GetHistoryTransactions(ctx *gin.Context) {
 	})
 }
 
+// GetHistoryDetailById godoc
+// @Summary      Get detail of a user's transaction by ID
+// @Description  Fetch detailed information of a single transaction including items for the authenticated user
+// @Tags         Transactions
+// @Accept       json
+// @Produce      json
+// @Param        id   path      int  true  "Transaction ID"
+// @Success      200  {object}  models.Response{data=models.HistoryDetail} "Transaction detail fetched successfully"
+// @Failure      400  {object}  models.Response "Invalid user ID or transaction ID"
+// @Failure      401  {object}  models.Response "Unauthorized"
+// @Failure      500  {object}  models.Response "Internal server error"
+// @Security     ApiKeyAuth
+// @Router       /history/{id} [get]
 func (tc *TransactionController) GetHistoryDetailById(ctx *gin.Context) {
 	userIDValue, exists := ctx.Get("userID")
 	if !exists {
@@ -277,7 +290,7 @@ func (tc *TransactionController) GetHistoryDetailById(ctx *gin.Context) {
 		})
 		return
 	}
-	
+
 	var userID int64
 	switch v := userIDValue.(type) {
 	case int64:

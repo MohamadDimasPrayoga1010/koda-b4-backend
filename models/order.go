@@ -27,6 +27,7 @@ type Transaction struct {
 	UserPhone     string            `json:"user_phone"`
 	PaymentMethod string            `json:"payment_method"`
 	ShippingName  string            `json:"shipping_name"`
+	VariantName   *string           `json:"variant,omitempty"`
 	OrderItems    []TransactionItem `json:"order_items"`
 }
 
@@ -70,9 +71,7 @@ func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, off
 	}
 
 	query += " GROUP BY t.id, u.fullname, t.address, t.phone, pm.name, sh.name"
-
 	query += " ORDER BY " + sort + " " + order
-
 	query += " LIMIT $" + strconv.Itoa(argIdx) + " OFFSET $" + strconv.Itoa(argIdx+1)
 	queriParams = append(queriParams, limit, offset)
 
@@ -95,17 +94,27 @@ func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, off
 			continue
 		}
 
+
 		itemRows, _ := db.Query(context.Background(), `
-			SELECT pr.title, s.name AS size, ti.quantity AS qty
+			SELECT pr.title, s.name AS size, v.name AS variant, ti.quantity AS qty
 			FROM transaction_items ti
 			JOIN products pr ON pr.id = ti.product_id
 			LEFT JOIN sizes s ON s.id = ti.size_id
+			LEFT JOIN variants v ON v.id = ti.variant_id
 			WHERE ti.transaction_id=$1
 		`, t.ID)
 
+		var variantName *string
 		for itemRows.Next() {
 			var item TransactionItem
-			itemRows.Scan(&item.Title, &item.Size, &item.Qty)
+			var sizeName *string
+			itemRows.Scan(&item.Title, &sizeName, &variantName, &item.Qty)
+
+			item.Size = ""
+			if sizeName != nil {
+				item.Size = *sizeName
+			}
+			t.VariantName = variantName
 			t.OrderItems = append(t.OrderItems, item)
 		}
 		itemRows.Close()
@@ -115,6 +124,7 @@ func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, off
 
 	return transactions, nil
 }
+
 
 func GetTransactionByID(db *pgxpool.Pool, id string) (Transaction, error) {
 	var t Transaction
@@ -152,21 +162,35 @@ func GetTransactionByID(db *pgxpool.Pool, id string) (Transaction, error) {
 	}
 
 	itemRows, _ := db.Query(context.Background(), `
-		SELECT pr.title, s.name AS size, ti.quantity AS qty
+		SELECT pr.title, s.name AS size, v.name AS variant, ti.quantity AS qty
 		FROM transaction_items ti
 		JOIN products pr ON pr.id = ti.product_id
 		LEFT JOIN sizes s ON s.id = ti.size_id
+		LEFT JOIN variants v ON v.id = ti.variant_id
 		WHERE ti.transaction_id=$1
 	`, t.ID)
+
+	var variantName *string
 	for itemRows.Next() {
 		var item TransactionItem
-		itemRows.Scan(&item.Title, &item.Size, &item.Qty)
+		var sizeName *string
+
+		itemRows.Scan(&item.Title, &sizeName, &variantName, &item.Qty)
+
+		item.Size = ""
+		if sizeName != nil {
+			item.Size = *sizeName
+		}
+
+		t.VariantName = variantName
+
 		t.OrderItems = append(t.OrderItems, item)
 	}
 	itemRows.Close()
 
 	return t, nil
 }
+
 
 type HistoryTransaction struct {
 	ID            int64     `json:"id"`
@@ -176,7 +200,6 @@ type HistoryTransaction struct {
 	Status        string    `json:"status"`
 	CreatedAt     time.Time `json:"created_at"`
 }
-
 
 func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month, page, limit int) ([]HistoryTransaction, error) {
 	ctx := context.Background()
@@ -231,8 +254,6 @@ func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month
 
 	return histories, nil
 }
-
-
 
 type HistoryDetail struct {
 	ID             int64                   `json:"id"`
