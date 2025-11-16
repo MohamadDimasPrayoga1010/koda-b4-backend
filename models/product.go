@@ -484,6 +484,7 @@ type Cart struct {
 }
 
 type CartItemResponse struct {
+	ID        int64   `json:"id"`
 	ProductID int64   `json:"product_id"`
 	Title     string  `json:"title"`
 	BasePrice float64 `json:"base_price"`
@@ -543,6 +544,7 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 	var item CartItemResponse
 	err = db.QueryRow(ctx, `
 		SELECT 
+			c.id,
 			c.product_id,
 			p.title,
 			p.base_price,
@@ -558,9 +560,15 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 		LEFT JOIN variants v ON v.id=c.variant_id
 		WHERE c.id=$1
 	`, cartID).Scan(
-		&item.ProductID, &item.Title, &item.BasePrice,
-		&item.Image, &item.Size, &item.Variant,
-		&item.Quantity, &item.Subtotal,
+		&item.ID,
+		&item.ProductID,
+		&item.Title,
+		&item.BasePrice,
+		&item.Image,
+		&item.Size,
+		&item.Variant,
+		&item.Quantity,
+		&item.Subtotal,
 	)
 	if err != nil {
 		return CartItemResponse{}, err
@@ -571,7 +579,7 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 
 func DeleteCart(db *pgxpool.Pool, cartID int64, userID int64) error {
 	ctx := context.Background()
-	
+
 	res, err := db.Exec(ctx, `
 		DELETE FROM carts 
 		WHERE id=$1 AND user_id=$2
