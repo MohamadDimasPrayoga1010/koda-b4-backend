@@ -8,7 +8,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -183,7 +182,6 @@ func CreateProduct(db *pgxpool.Pool, req ProductRequest, imageFiles []string) (P
 	return product, nil
 }
 
-
 func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string) ([]ProductResponse, error) {
 	ctx := context.Background()
 	offset := (page - 1) * limit
@@ -281,7 +279,6 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 	return products, nil
 }
 
-
 func GetProductByID(db *pgxpool.Pool, productID int64) (ProductResponse, error) {
 	ctx := context.Background()
 	var p ProductResponse
@@ -331,7 +328,6 @@ func GetProductByID(db *pgxpool.Pool, productID int64) (ProductResponse, error) 
 			p.Sizes = append(p.Sizes, s)
 		}
 	}
-
 
 	imageRows, _ := db.Query(ctx,
 		`SELECT COALESCE(image, '') AS image, updated_at
@@ -419,7 +415,6 @@ func UpdateProduct(db *pgxpool.Pool, productID int64, req ProductRequest, imageF
 	return product, nil
 }
 
-
 type ProductFilter struct {
 	Categories []int64  `json:"categories" form:"categories"`
 	IsFavorite *bool    `json:"is_favorite" form:"is_favorite"`
@@ -463,12 +458,12 @@ type RecommendedProduct struct {
 }
 
 type Cart struct {
-	ID        int64  `json:"id"`
-	UserID    int64  `json:"user_id"`
-	ProductID int64  `json:"product_id"`
-	SizeID    *int64 `json:"size_id,omitempty"`
-	VariantID *int64 `json:"variant_id,omitempty"`
-	Quantity  int    `json:"quantity"`
+	ID        int64     `json:"id"`
+	UserID    int64     `json:"user_id"`
+	ProductID int64     `json:"product_id"`
+	SizeID    *int64    `json:"size_id,omitempty"`
+	VariantID *int64    `json:"variant_id,omitempty"`
+	Quantity  int       `json:"quantity"`
 	CreatedAt time.Time `json:"created_at"`
 	UpdatedAt time.Time `json:"updated_at"`
 }
@@ -482,6 +477,11 @@ type CartItemResponse struct {
 	Variant   string  `json:"variant,omitempty"`
 	Quantity  int     `json:"quantity"`
 	Subtotal  float64 `json:"subtotal"`
+}
+
+type CartResponse struct {
+	Items []CartItemResponse `json:"items"`
+	Total float64            `json:"total"`
 }
 
 func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantID *int64, quantity int) (CartItemResponse, error) {
@@ -554,7 +554,7 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 	return item, nil
 }
 
-func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, float64, error) {
+func GetCartByUser(db *pgxpool.Pool, userID int64) (CartResponse, error) {
 	ctx := context.Background()
 
 	query := `
@@ -562,12 +562,11 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, float64,
 			c.product_id,
 			p.title,
 			p.base_price,
-			COALESCE(pi.image, '') AS image,
-			COALESCE(s.name, '') AS size,
-			COALESCE(v.name, '') AS variant,
-			c.quantity,
-			((p.base_price + COALESCE(s.additional_price, 0) + COALESCE(v.additional_price, 0)) * c.quantity) AS subtotal,
-			SUM((p.base_price + COALESCE(s.additional_price, 0) + COALESCE(v.additional_price, 0)) * c.quantity) OVER () AS total_cart
+			COALESCE(pi.image,'') AS image,
+			COALESCE(s.name,'') AS size,
+			COALESCE(v.name,'') AS variant,
+			SUM(c.quantity) AS quantity,
+			SUM((p.base_price + COALESCE(s.additional_price,0) + COALESCE(v.additional_price,0)) * c.quantity) AS subtotal
 		FROM carts c
 		JOIN products p ON p.id = c.product_id
 		LEFT JOIN LATERAL (
@@ -580,12 +579,13 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, float64,
 		LEFT JOIN sizes s ON s.id = c.size_id
 		LEFT JOIN variants v ON v.id = c.variant_id
 		WHERE c.user_id = $1
-		ORDER BY c.created_at ASC
+		GROUP BY c.product_id, p.title, p.base_price, pi.image, s.name, v.name
+		ORDER BY c.product_id ASC
 	`
 
 	rows, err := db.Query(ctx, query, userID)
 	if err != nil {
-		return nil, 0, err
+		return CartResponse{}, err
 	}
 	defer rows.Close()
 
@@ -603,14 +603,17 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) ([]CartItemResponse, float64,
 			&item.Variant,
 			&item.Quantity,
 			&item.Subtotal,
-			&total,
 		); err != nil {
-			return nil, 0, err
+			return CartResponse{}, err
 		}
 		items = append(items, item)
+		total += item.Subtotal
 	}
 
-	return items, total, nil
+	return CartResponse{
+		Items: items,
+		Total: total,
+	}, nil
 }
 
 type OrderTransactionRequest struct {
@@ -624,13 +627,15 @@ type OrderTransactionRequest struct {
 }
 
 type OrderTransactionItem struct {
-	ID          int64   `json:"id"`
-	ProductID   int64   `json:"product_id"`
-	ProductName string  `json:"product_name"`
-	VariantName *string `json:"variant_name,omitempty"`
-	SizeName    *string `json:"size_name,omitempty"`
-	Quantity    int     `json:"quantity"`
-	Subtotal    float64 `json:"subtotal"`
+	ID          int64    `json:"id"`
+	ProductID   int64    `json:"product_id"`
+	ProductName string   `json:"product_name"`
+	Quantity    int      `json:"quantity"`
+	SizeID      *int64   `json:"size_id,omitempty"`
+	SizeName    *string  `json:"size_name,omitempty"`
+	VariantID   *int64   `json:"variant_id,omitempty"`
+	VariantName *string  `json:"variant_name,omitempty"`
+	Subtotal    float64  `json:"subtotal"`
 }
 
 type OrderTransaction struct {
@@ -658,53 +663,27 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 		return nil, err
 	}
 	defer func() {
-		if err != nil {
+		if p := recover(); p != nil {
+			tx.Rollback(ctx)
+			panic(p)
+		} else if err != nil {
 			tx.Rollback(ctx)
 		}
 	}()
 
-	var userEmail string
-	err = tx.QueryRow(ctx, `SELECT email FROM users WHERE id=$1`, req.UserID).Scan(&userEmail)
-	if err != nil {
-		return nil, errors.New("failed to fetch user email")
-	}
-	if req.Email == "" {
-		req.Email = userEmail
-	}
-
-	var profilePhone, profileAddress *string
-	err = tx.QueryRow(ctx, `SELECT phone, address FROM profile WHERE user_id=$1`, req.UserID).Scan(&profilePhone, &profileAddress)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		return nil, errors.New("failed to fetch user profile")
-	}
-
-	if req.Phone == "" {
-		if profilePhone != nil {
-			req.Phone = *profilePhone
-		} else {
-			return nil, errors.New("phone must be provided")
-		}
-	}
-	if req.Address == "" {
-		if profileAddress != nil {
-			req.Address = *profileAddress
-		} else {
-			return nil, errors.New("address must be provided")
-		}
-	}
-
 	queryCart := `
 		SELECT 
-			c.product_id, 
-			p.title AS product_name,
-			s.name AS size_name,
-			v.name AS variant_name,
-			c.quantity,
-			(p.base_price + COALESCE(s.additional_price,0)) * c.quantity AS subtotal
+			c.id, c.product_id, c.quantity,
+			p.title, p.base_price,
+			c.size_id, s.name AS size_name, COALESCE(s.additional_price,0) AS size_price,
+			c.variant_id, v.name AS variant_name, COALESCE(v.additional_price,0) AS variant_price,
+			COALESCE(pr.discount,0) AS promo_discount
 		FROM carts c
 		JOIN products p ON p.id = c.product_id
 		LEFT JOIN sizes s ON s.id = c.size_id
 		LEFT JOIN variants v ON v.id = c.variant_id
+		LEFT JOIN product_promos pp ON pp.product_id = p.id
+		LEFT JOIN promos pr ON pr.id = pp.promo_id AND pr.start <= NOW() AND pr."end" >= NOW()
 		WHERE c.user_id=$1
 	`
 	rows, err := tx.Query(ctx, queryCart, req.UserID)
@@ -715,14 +694,34 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 
 	var items []OrderTransactionItem
 	var total float64
+
 	for rows.Next() {
 		var item OrderTransactionItem
 		var sizeName, variantName *string
-		if err := rows.Scan(&item.ProductID, &item.ProductName, &sizeName, &variantName, &item.Quantity, &item.Subtotal); err != nil {
+		var sizePrice, variantPrice, basePrice, promoDiscount float64
+		var quantity, cartID int
+		var sizeID, variantID *int64
+
+		if err := rows.Scan(
+			&cartID, &item.ProductID, &quantity, &item.ProductName, &basePrice,
+			&sizeID, &sizeName, &sizePrice,
+			&variantID, &variantName, &variantPrice,
+			&promoDiscount,
+		); err != nil {
 			return nil, err
 		}
+
+		item.ID = int64(cartID)
+		item.Quantity = quantity
+		item.SizeID = sizeID
 		item.SizeName = sizeName
+		item.VariantID = variantID
 		item.VariantName = variantName
+		item.Subtotal = (basePrice + sizePrice + variantPrice - promoDiscount) * float64(quantity)
+		if item.Subtotal < 0 {
+			item.Subtotal = 0
+		}
+
 		items = append(items, item)
 		total += item.Subtotal
 	}
@@ -731,21 +730,18 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 		return nil, errors.New("cart is empty")
 	}
 
-	for i := range items {
-		item := &items[i]
-
+	for _, item := range items {
 		var currentStock int
-		err := tx.QueryRow(ctx, `SELECT COALESCE(stock,0) FROM products WHERE id=$1 FOR UPDATE`, item.ProductID).Scan(&currentStock)
+		err := tx.QueryRow(ctx, `SELECT stock FROM products WHERE id=$1 FOR UPDATE`, item.ProductID).Scan(&currentStock)
 		if err != nil {
-			return nil, errors.New("failed to fetch stock for product " + item.ProductName + ": " + err.Error())
+			return nil, errors.New("failed to fetch stock for product " + item.ProductName)
 		}
 		if item.Quantity > currentStock {
-			return nil, errors.New("product " + item.ProductName + " stock insufficient: available " + strconv.Itoa(currentStock) + ", requested " + strconv.Itoa(item.Quantity))
+			return nil, errors.New("product " + item.ProductName + " stock insufficient")
 		}
-
 		_, err = tx.Exec(ctx, `UPDATE products SET stock = stock - $1 WHERE id=$2`, item.Quantity, item.ProductID)
 		if err != nil {
-			return nil, errors.New("failed to update stock for product " + item.ProductName + ": " + err.Error())
+			return nil, errors.New("failed to update stock for product " + item.ProductName)
 		}
 	}
 
@@ -760,34 +756,27 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 	}
 
 	invoice := "INV-" + time.Now().Format("20060102150405") + "-" + strconv.FormatInt(req.UserID, 10)
+
 	var orderID int64
 	var createdAt, updatedAt time.Time
-	insertOrder := `
+	err = tx.QueryRow(ctx, `
 		INSERT INTO transactions
-			(user_id, fullname, email, phone, address, payment_method_id, shipping_id, invoice_number, total, status, created_at, updated_at)
+		(user_id, fullname, email, phone, address, payment_method_id, shipping_id, invoice_number, total, status, created_at, updated_at)
 		VALUES ($1,$2,$3,$4,$5,$6,$7,$8,$9,'Pending',NOW(),NOW())
 		RETURNING id, created_at, updated_at
-	`
-	err = tx.QueryRow(ctx, insertOrder,
-		req.UserID, req.Fullname, req.Email, req.Phone, req.Address,
-		req.PaymentMethodID, req.ShippingID, invoice, total,
-	).Scan(&orderID, &createdAt, &updatedAt)
+	`, req.UserID, req.Fullname, req.Email, req.Phone, req.Address,
+		req.PaymentMethodID, req.ShippingID, invoice, total).Scan(&orderID, &createdAt, &updatedAt)
 	if err != nil {
 		return nil, err
 	}
 
 	for i := range items {
 		item := &items[i]
-
-		insertItem := `
+		_, err := tx.Exec(ctx, `
 			INSERT INTO transaction_items
-				(transaction_id, product_id, variant_id, size_id, quantity, subtotal)
+			(transaction_id, product_id, variant_id, size_id, quantity, subtotal)
 			VALUES ($1,$2,$3,$4,$5,$6)
-			RETURNING id
-		`
-		err = tx.QueryRow(ctx, insertItem,
-			orderID, item.ProductID, nil, nil, item.Quantity, item.Subtotal,
-		).Scan(&item.ID)
+		`, orderID, item.ProductID, item.VariantID, item.SizeID, item.Quantity, item.Subtotal)
 		if err != nil {
 			return nil, err
 		}
@@ -808,7 +797,7 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 		ShippingName:      shippingName,
 		InvoiceNumber:     invoice,
 		Total:             total,
-		Status:            "OnProgress",
+		Status:            "Pending",
 		CreatedAt:         createdAt,
 		UpdatedAt:         updatedAt,
 		Items:             items,
@@ -816,3 +805,5 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 
 	return order, nil
 }
+
+

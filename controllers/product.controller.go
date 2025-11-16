@@ -5,7 +5,6 @@ import (
 	"coffeeder-backend/models"
 	"context"
 	"encoding/json"
-	"errors"
 	"fmt"
 	"net/http"
 	"os"
@@ -15,7 +14,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -1103,7 +1101,19 @@ func (pc *ProductController) GetProductDetail(ctx *gin.Context) {
 }
 
 
-
+// AddToCart godoc
+// @Summary Add items to cart
+// @Description Add or update multiple items in user's cart. If item exists, quantity will be updated.
+// @Tags Cart
+// @Accept json
+// @Produce json
+// @Param carts body []models.Cart true "List of cart items"
+// @Success 200 {object} models.Response{data=[]models.CartItemResponse} "Items added successfully"
+// @Failure 400 {object} models.Response "Invalid request or stock not enough"
+// @Failure 401 {object} models.Response "Unauthorized"
+// @Failure 500 {object} models.Response "Internal server error"
+// @Security ApiKeyAuth
+// @Router /cart [post]
 func (pc *ProductController) AddToCart(ctx *gin.Context) {
 
 	userIDValue, exists := ctx.Get("userID")
@@ -1178,7 +1188,17 @@ func (pc *ProductController) AddToCart(ctx *gin.Context) {
 	})
 }
 
-
+// GetCart godoc
+// @Summary Get user's cart
+// @Description Retrieve all items in the authenticated user's cart.
+// @Tags Cart
+// @Produce json
+// @Success 200 {object} models.Response{data=[]models.CartItemResponse} "Cart fetched successfully"
+// @Failure 400 {object} models.Response "Invalid user ID"
+// @Failure 401 {object} models.Response "Unauthorized"
+// @Failure 500 {object} models.Response "Failed to fetch cart"
+// @Security ApiKeyAuth
+// @Router /cart [get]
 func (pc *ProductController) GetCart(ctx *gin.Context) {
 	userIDValue, exists := ctx.Get("userID")
 	if !exists {
@@ -1215,7 +1235,7 @@ func (pc *ProductController) GetCart(ctx *gin.Context) {
 		return
 	}
 
-	cartItems, total, err := models.GetCartByUser(pc.DB, userID)
+	cartResp, err := models.GetCartByUser(pc.DB, userID)
 	if err != nil {
 		ctx.JSON(500, models.Response{
 			Success: false,
@@ -1228,21 +1248,30 @@ func (pc *ProductController) GetCart(ctx *gin.Context) {
 	ctx.JSON(200, models.Response{
 		Success: true,
 		Message: "Cart fetched successfully",
-		Data: map[string]interface{}{
-			"items": cartItems,
-			"total": total,
-		},
+		Data:    cartResp,
 	})
 }
 
 
+// CreateTransaction godoc
+// @Summary Create a new transaction
+// @Description Create a transaction for the authenticated user's cart items. User profile fields are used if not provided in request.
+// @Tags Transaction
+// @Accept json
+// @Produce json
+// @Param request body models.OrderTransactionRequest true "Transaction request body"
+// @Success 201 {object} models.Response{data=models.OrderTransaction} "Transaction created successfully"
+// @Failure 400 {object} models.Response "Invalid request or missing user info"
+// @Failure 401 {object} models.Response "User not authenticated"
+// @Failure 500 {object} models.Response "Failed to create transaction"
+// @Security ApiKeyAuth
+// @Router /transactions [post]
 func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
-
 	userIDValue, exists := ctx.Get("userID")
 	if !exists {
-		ctx.JSON(http.StatusUnauthorized, gin.H{
-			"status":  "error",
-			"message": "User not authenticated",
+		ctx.JSON(http.StatusUnauthorized, models.Response{
+			Success: false,
+			Message: "User not authenticated",
 		})
 		return
 	}
@@ -1251,74 +1280,96 @@ func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
 	switch v := userIDValue.(type) {
 	case int64:
 		userID = v
+	case int:
+		userID = int64(v)
 	case float64:
 		userID = int64(v)
+	case string:
+		tmp, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, models.Response{
+				Success: false,
+				Message: "Invalid user ID",
+			})
+			return
+		}
+		userID = tmp
 	default:
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Invalid user ID type",
+		ctx.JSON(http.StatusBadRequest, models.Response{
+			Success: false,
+			Message: "Invalid user ID",
 		})
 		return
 	}
 
 	var req models.OrderTransactionRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(http.StatusBadRequest, gin.H{
-			"status":  "error",
-			"message": "Invalid request body",
-			"error":   err.Error(),
+		ctx.JSON(http.StatusBadRequest, models.Response{
+			Success: false,
+			Message: "Invalid request body",
+			Data:    err.Error(),
 		})
 		return
 	}
 
 	req.UserID = userID
 
-	var userEmail string
-	err := pc.DB.QueryRow(ctx.Request.Context(), "SELECT email FROM users WHERE id=$1", userID).Scan(&userEmail)
+	var dbFullname, dbEmail, dbPhone, dbAddress *string
+	err := pc.DB.QueryRow(ctx, `
+		SELECT u.fullname, u.email, p.phone, p.address
+		FROM users u
+		LEFT JOIN profile p ON p.user_id = u.id
+		WHERE u.id=$1
+	`, userID).Scan(&dbFullname, &dbEmail, &dbPhone, &dbAddress)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Failed to fetch user email",
-			"error":   err.Error(),
-		})
-		return
-	}
-	if req.Email == "" {
-		req.Email = userEmail
-	}
-
-	var profilePhone, profileAddress *string
-	err = pc.DB.QueryRow(ctx.Request.Context(),
-		"SELECT phone, address FROM profile WHERE user_id=$1", userID).
-		Scan(&profilePhone, &profileAddress)
-	if err != nil && !errors.Is(err, pgx.ErrNoRows) {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": "Failed to fetch user profile",
-			"error":   err.Error(),
+		ctx.JSON(http.StatusInternalServerError, models.Response{
+			Success: false,
+			Message: "Failed to fetch user info",
+			Data:    err.Error(),
 		})
 		return
 	}
 
-	if req.Phone == "" {
-		if profilePhone != nil {
-			req.Phone = *profilePhone
+	if req.Fullname == "" {
+		if dbFullname != nil && *dbFullname != "" {
+			req.Fullname = *dbFullname
 		} else {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"status":  "error",
-				"message": "Phone must be provided",
+			ctx.JSON(http.StatusBadRequest, models.Response{
+				Success: false,
+				Message: "Fullname must be provided",
 			})
 			return
 		}
 	}
-
-	if req.Address == "" {
-		if profileAddress != nil {
-			req.Address = *profileAddress
+	if req.Email == "" {
+		if dbEmail != nil && *dbEmail != "" {
+			req.Email = *dbEmail
 		} else {
-			ctx.JSON(http.StatusBadRequest, gin.H{
-				"status":  "error",
-				"message": "Address must be provided",
+			ctx.JSON(http.StatusBadRequest, models.Response{
+				Success: false,
+				Message: "Email must be provided",
+			})
+			return
+		}
+	}
+	if req.Phone == "" {
+		if dbPhone != nil && *dbPhone != "" {
+			req.Phone = *dbPhone
+		} else {
+			ctx.JSON(http.StatusBadRequest, models.Response{
+				Success: false,
+				Message: "Phone must be provided",
+			})
+			return
+		}
+	}
+	if req.Address == "" {
+		if dbAddress != nil && *dbAddress != "" {
+			req.Address = *dbAddress
+		} else {
+			ctx.JSON(http.StatusBadRequest, models.Response{
+				Success: false,
+				Message: "Address must be provided",
 			})
 			return
 		}
@@ -1326,15 +1377,19 @@ func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
 
 	order, err := models.CreateOrderTransaction(pc.DB, req)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"status":  "error",
-			"message": err.Error(),
+		ctx.JSON(http.StatusInternalServerError, models.Response{
+			Success: false,
+			Message: "Failed to create transaction",
+			Data:    err.Error(),
 		})
 		return
 	}
 
-	ctx.JSON(http.StatusCreated, gin.H{
-		"status": "success",
-		"data":   order,
+	ctx.JSON(http.StatusCreated, models.Response{
+		Success: true,
+		Message: "Transaction created successfully",
+		Data:    order,
 	})
 }
+
+
