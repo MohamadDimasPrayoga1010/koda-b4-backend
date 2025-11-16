@@ -569,6 +569,26 @@ func AddOrUpdateCart(db *pgxpool.Pool, userID, productID int64, sizeID, variantI
 	return item, nil
 }
 
+func DeleteCart(db *pgxpool.Pool, cartID int64, userID int64) error {
+	ctx := context.Background()
+	
+	res, err := db.Exec(ctx, `
+		DELETE FROM carts 
+		WHERE id=$1 AND user_id=$2
+	`, cartID, userID)
+
+	if err != nil {
+		return err
+	}
+
+	if res.RowsAffected() == 0 {
+		return errors.New("cart item not found or not owned by user")
+	}
+
+	return nil
+}
+
+
 func GetCartByUser(db *pgxpool.Pool, userID int64) (CartResponse, error) {
 	ctx := context.Background()
 

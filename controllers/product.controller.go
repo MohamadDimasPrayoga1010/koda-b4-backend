@@ -1228,6 +1228,72 @@ func (pc *ProductController) AddToCart(ctx *gin.Context) {
 	})
 }
 
+func (pc *ProductController) DeleteCart(ctx *gin.Context) {
+
+	userIDValue, exists := ctx.Get("userID")
+	if !exists {
+		ctx.JSON(http.StatusUnauthorized, models.Response{
+			Success: false,
+			Message: "Unauthorized",
+		})
+		return
+	}
+
+	var userID int64
+	switch v := userIDValue.(type) {
+	case int64:
+		userID = v
+	case int:
+		userID = int64(v)
+	case float64:
+		userID = int64(v)
+	case string:
+		uid, err := strconv.ParseInt(v, 10, 64)
+		if err != nil {
+			ctx.JSON(http.StatusBadRequest, models.Response{
+				Success: false,
+				Message: "Invalid user ID",
+			})
+			return
+		}
+		userID = uid
+	default:
+		ctx.JSON(http.StatusBadRequest, models.Response{
+			Success: false,
+			Message: "Invalid user ID",
+		})
+		return
+	}
+
+	var req struct {
+		CartID int64 `json:"cart_id"`
+	}
+
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(http.StatusBadRequest, models.Response{
+			Success: false,
+			Message: "Invalid request body",
+			Data:    err.Error(),
+		})
+		return
+	}
+
+	err := models.DeleteCart(pc.DB, userID, req.CartID)
+	if err != nil {
+		ctx.JSON(http.StatusBadRequest, models.Response{
+			Success: false,
+			Message: err.Error(),
+		})
+		return
+	}
+
+	ctx.JSON(http.StatusOK, models.Response{
+		Success: true,
+		Message: "Cart item deleted successfully",
+	})
+}
+
+
 // GetCart godoc
 // @Summary Get user's cart
 // @Description Retrieve all items in the authenticated user's cart.
