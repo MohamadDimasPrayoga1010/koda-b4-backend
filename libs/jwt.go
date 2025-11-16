@@ -72,7 +72,7 @@ func JWTMiddleware() gin.HandlerFunc {
 			return
 		}
 
-		ctx.Set("user_id", claims.Id)
+		ctx.Set("userID", claims.Id)
 		ctx.Set("user_email", claims.Email)
 		ctx.Set("user_role", claims.Role)
 
