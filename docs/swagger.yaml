@@ -1,11 +1,156 @@
 basePath: /
 definitions:
+  models.Cart:
+    properties:
+      created_at:
+        type: string
+      id:
+        type: integer
+      product_id:
+        type: integer
+      quantity:
+        type: integer
+      size_id:
+        type: integer
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+      variant_id:
+        type: integer
+    type: object
+  models.CartItemResponse:
+    properties:
+      base_price:
+        type: number
+      image:
+        type: string
+      product_id:
+        type: integer
+      quantity:
+        type: integer
+      size:
+        type: string
+      subtotal:
+        type: number
+      title:
+        type: string
+      variant:
+        type: string
+    type: object
+  models.CategoryProduct:
+    properties:
+      id:
+        type: integer
+      name:
+        type: string
+    type: object
   models.ForgotPasswordRequest:
     properties:
       email:
         type: string
     required:
     - email
+    type: object
+  models.HistoryDetail:
+    properties:
+      created_at:
+        type: string
+      cust_address:
+        type: string
+      cust_email:
+        type: string
+      cust_name:
+        type: string
+      cust_phone:
+        type: string
+      delivery_method:
+        type: string
+      id:
+        type: integer
+      invoice:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/models.TransactionItemDetail'
+        type: array
+      payment_method:
+        type: string
+      status:
+        type: string
+      total:
+        type: number
+    type: object
+  models.OrderTransaction:
+    properties:
+      address:
+        type: string
+      created_at:
+        type: string
+      email:
+        type: string
+      fullname:
+        type: string
+      id:
+        type: integer
+      invoice_number:
+        type: string
+      items:
+        items:
+          $ref: '#/definitions/models.OrderTransactionItem'
+        type: array
+      payment_method_name:
+        type: string
+      phone:
+        type: string
+      shipping_name:
+        type: string
+      status:
+        type: string
+      total:
+        type: number
+      updated_at:
+        type: string
+      user_id:
+        type: integer
+    type: object
+  models.OrderTransactionItem:
+    properties:
+      id:
+        type: integer
+      product_id:
+        type: integer
+      product_name:
+        type: string
+      quantity:
+        type: integer
+      size_id:
+        type: integer
+      size_name:
+        type: string
+      subtotal:
+        type: number
+      variant_id:
+        type: integer
+      variant_name:
+        type: string
+    type: object
+  models.OrderTransactionRequest:
+    properties:
+      address:
+        type: string
+      email:
+        type: string
+      fullname:
+        type: string
+      payment_method_id:
+        type: integer
+      phone:
+        type: string
+      shipping_id:
+        type: integer
+      user_id:
+        type: integer
     type: object
   models.ProductDetail:
     properties:
@@ -51,11 +196,46 @@ definitions:
       updated_at:
         type: string
     type: object
+  models.ProductResponse:
+    properties:
+      base_price:
+        type: number
+      category:
+        $ref: '#/definitions/models.CategoryProduct'
+      created_at:
+        type: string
+      description:
+        type: string
+      id:
+        type: integer
+      images:
+        items:
+          $ref: '#/definitions/models.ProductImage'
+        type: array
+      sizes:
+        items:
+          $ref: '#/definitions/models.Size'
+        type: array
+      stock:
+        type: integer
+      title:
+        type: string
+      updated_at:
+        type: string
+      variants:
+        items:
+          $ref: '#/definitions/models.Variant'
+        type: array
+    type: object
   models.ProfileUser:
     properties:
       address:
         type: string
       created_at:
+        type: string
+      email:
+        type: string
+      fullname:
         type: string
       id:
         type: integer
@@ -125,6 +305,27 @@ definitions:
       name:
         type: string
     type: object
+  models.TransactionItemDetail:
+    properties:
+      base_price:
+        type: number
+      discount_price:
+        type: number
+      id:
+        type: integer
+      image:
+        type: string
+      name:
+        type: string
+      quantity:
+        type: integer
+      size:
+        type: string
+      subtotal:
+        type: number
+      variant:
+        type: string
+    type: object
   models.UserLogin:
     properties:
       email:
@@ -154,6 +355,8 @@ definitions:
     type: object
   models.Variant:
     properties:
+      additional_price:
+        type: integer
       id:
         type: integer
       name:
@@ -323,30 +526,30 @@ paths:
     get:
       consumes:
       - application/json
-      description: Mengambil daftar products dengan pagination, optional search, dan
-        sorting
+      description: Get paginated products list with search, sorting, and filtering
+        options. Includes images, sizes, and variants.
       parameters:
+      - description: Search by title or description
+        in: query
+        name: search
+        type: string
+      - default: 10
+        description: Number of products per page
+        in: query
+        name: limit
+        type: integer
       - default: 1
         description: Page number
         in: query
         name: page
         type: integer
-      - default: 10
-        description: Limit per page
-        in: query
-        name: limit
-        type: integer
-      - description: Search by title or description
-        in: query
-        name: search
-        type: string
       - default: created_at
-        description: Sort by field (id, title, base_price, created_at)
+        description: Sort field (id, title, base_price, created_at)
         in: query
         name: sort_by
         type: string
-      - default: desc
-        description: Sort order (asc/desc)
+      - default: DESC
+        description: Sort order (ASC or DESC)
         in: query
         name: order
         type: string
@@ -355,6 +558,16 @@ paths:
       responses:
         "200":
           description: OK
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.Response'
+            - properties:
+                data:
+                  additionalProperties: true
+                  type: object
+              type: object
+        "400":
+          description: Bad Request
           schema:
             $ref: '#/definitions/models.Response'
         "500":
@@ -367,14 +580,14 @@ paths:
     post:
       consumes:
       - multipart/form-data
-      description: Membuat produk baru beserta gambar dan ukuran
+      description: Create a new product with multiple variants, sizes, and images
       parameters:
       - description: Product Title
         in: formData
         name: title
         required: true
         type: string
-      - description: Description
+      - description: Product Description
         in: formData
         name: description
         type: string
@@ -391,12 +604,13 @@ paths:
       - description: Category ID
         in: formData
         name: category_id
+        required: true
         type: integer
-      - description: Variant ID
+      - description: 'Comma-separated Variant IDs (example: 1,2,3)'
         in: formData
-        name: variant_id
-        type: integer
-      - description: 'List of size IDs (example: 1,2,3)'
+        name: variant_ids
+        type: string
+      - description: 'Comma-separated Size IDs (example: 1,3)'
         in: formData
         name: sizes
         type: string
@@ -413,6 +627,10 @@ paths:
             $ref: '#/definitions/models.Response'
         "400":
           description: Bad Request
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal Server Error
           schema:
             $ref: '#/definitions/models.Response'
       summary: Create a new product
@@ -447,38 +665,11 @@ paths:
       summary: Delete a product
       tags:
       - Products
-    get:
-      consumes:
-      - application/json
-      description: Mengambil product berdasarkan ID
-      parameters:
-      - description: Product ID
-        in: path
-        name: id
-        required: true
-        type: integer
-      produces:
-      - application/json
-      responses:
-        "200":
-          description: OK
-          schema:
-            $ref: '#/definitions/models.Response'
-        "404":
-          description: Not Found
-          schema:
-            $ref: '#/definitions/models.Response'
-        "500":
-          description: Internal Server Error
-          schema:
-            $ref: '#/definitions/models.Response'
-      summary: Get a product by ID
-      tags:
-      - Products
     patch:
       consumes:
       - multipart/form-data
-      description: Update product data by ID, including multiple sizes and images
+      description: Update product details including title, description, price, stock,
+        category, variants, sizes, and images
       parameters:
       - description: Product ID
         in: path
@@ -494,12 +685,12 @@ paths:
         in: formData
         name: description
         type: string
-      - description: Base price of the product
+      - description: Product base price
         in: formData
         name: base_price
         required: true
         type: number
-      - description: Stock quantity
+      - description: Product stock
         in: formData
         name: stock
         required: true
@@ -507,16 +698,23 @@ paths:
       - description: Category ID
         in: formData
         name: category_id
+        required: true
         type: integer
-      - description: Variant ID
+      - collectionFormat: csv
+        description: Variant IDs (array)
         in: formData
+        items:
+          type: integer
         name: variant_id
-        type: integer
-      - description: List of size IDs (send multiple 'sizes' params for multiple sizes)
+        type: array
+      - collectionFormat: csv
+        description: Size IDs (array)
         in: formData
+        items:
+          type: integer
         name: sizes
-        type: integer
-      - description: Product images (send multiple 'images' files for multiple uploads)
+        type: array
+      - description: Product images
         in: formData
         name: images
         type: file
@@ -526,16 +724,21 @@ paths:
         "200":
           description: Product updated successfully
           schema:
-            $ref: '#/definitions/models.Response'
+            allOf:
+            - $ref: '#/definitions/models.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.ProductResponse'
+              type: object
         "400":
-          description: Invalid request body
+          description: Invalid request or product ID
           schema:
             $ref: '#/definitions/models.Response'
-        "404":
-          description: Product not found
+        "500":
+          description: Failed to update product
           schema:
             $ref: '#/definitions/models.Response'
-      summary: Update product
+      summary: Update a product
       tags:
       - Products
   /admin/transactions:
@@ -1064,6 +1267,85 @@ paths:
       summary: Verify OTP
       tags:
       - Auth
+  /cart:
+    get:
+      description: Retrieve all items in the authenticated user's cart.
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Cart fetched successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.CartItemResponse'
+                  type: array
+              type: object
+        "400":
+          description: Invalid user ID
+          schema:
+            $ref: '#/definitions/models.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Failed to fetch cart
+          schema:
+            $ref: '#/definitions/models.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: Get user's cart
+      tags:
+      - Cart
+    post:
+      consumes:
+      - application/json
+      description: Add or update multiple items in user's cart. If item exists, quantity
+        will be updated.
+      parameters:
+      - description: List of cart items
+        in: body
+        name: carts
+        required: true
+        schema:
+          items:
+            $ref: '#/definitions/models.Cart'
+          type: array
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Items added successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.Response'
+            - properties:
+                data:
+                  items:
+                    $ref: '#/definitions/models.CartItemResponse'
+                  type: array
+              type: object
+        "400":
+          description: Invalid request or stock not enough
+          schema:
+            $ref: '#/definitions/models.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/models.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: Add items to cart
+      tags:
+      - Cart
   /favorite-product:
     get:
       consumes:
@@ -1126,6 +1408,47 @@ paths:
       - application/json
       responses: {}
       summary: Get user transaction history
+      tags:
+      - Transactions
+  /history/{id}:
+    get:
+      consumes:
+      - application/json
+      description: Fetch detailed information of a single transaction including items
+        for the authenticated user
+      parameters:
+      - description: Transaction ID
+        in: path
+        name: id
+        required: true
+        type: integer
+      produces:
+      - application/json
+      responses:
+        "200":
+          description: Transaction detail fetched successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.HistoryDetail'
+              type: object
+        "400":
+          description: Invalid user ID or transaction ID
+          schema:
+            $ref: '#/definitions/models.Response'
+        "401":
+          description: Unauthorized
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Internal server error
+          schema:
+            $ref: '#/definitions/models.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: Get detail of a user's transaction by ID
       tags:
       - Transactions
   /product/{id}/images:
@@ -1417,6 +1740,48 @@ paths:
       summary: Update user profile
       tags:
       - Profile
+  /transactions:
+    post:
+      consumes:
+      - application/json
+      description: Create a transaction for the authenticated user's cart items. User
+        profile fields are used if not provided in request.
+      parameters:
+      - description: Transaction request body
+        in: body
+        name: request
+        required: true
+        schema:
+          $ref: '#/definitions/models.OrderTransactionRequest'
+      produces:
+      - application/json
+      responses:
+        "201":
+          description: Transaction created successfully
+          schema:
+            allOf:
+            - $ref: '#/definitions/models.Response'
+            - properties:
+                data:
+                  $ref: '#/definitions/models.OrderTransaction'
+              type: object
+        "400":
+          description: Invalid request or missing user info
+          schema:
+            $ref: '#/definitions/models.Response'
+        "401":
+          description: User not authenticated
+          schema:
+            $ref: '#/definitions/models.Response'
+        "500":
+          description: Failed to create transaction
+          schema:
+            $ref: '#/definitions/models.Response'
+      security:
+      - ApiKeyAuth: []
+      summary: Create a new transaction
+      tags:
+      - Transaction
 schemes:
 - https
 swagger: "2.0"
