@@ -1,6 +1,7 @@
 package models
 
 import (
+	"coffeeder-backend/libs"
 	"context"
 	"errors"
 	"fmt"
@@ -50,40 +51,49 @@ type ProfileResponse struct {
 
 func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address, fullname, email string, fileHeader *multipart.FileHeader) (ProfileResponse, error) {
 	ctx := context.Background()
-
 	var imagePath *string
+
 	if fileHeader != nil {
 		if fileHeader.Size > 2*1024*1024 {
 			return ProfileResponse{}, errors.New("file size exceeds 2MB")
 		}
+
 		ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
 		if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
 			return ProfileResponse{}, errors.New("file type must be jpg, jpeg, or png")
 		}
 
-		uploadDir := "./uploads/profile"
-		if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
-			return ProfileResponse{}, err
-		}
+		if os.Getenv("CLOUDINARY_API_KEY") != "" {
+			url, err := libs.UploadFile(fileHeader, "profile_images")
+			if err != nil {
+				return ProfileResponse{}, err
+			}
+			imagePath = &url
+		} else {
+			uploadDir := "./uploads/profile"
+			if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+				return ProfileResponse{}, err
+			}
 
-		filename := fmt.Sprintf("%d_%s", time.Now().UnixNano(), filepath.Base(fileHeader.Filename))
-		filePath := filepath.Join(uploadDir, filename)
-		imagePath = &filePath
+			filename := fmt.Sprintf("%d_%s", time.Now().UnixNano(), filepath.Base(fileHeader.Filename))
+			filePath := filepath.Join(uploadDir, filename)
+			imagePath = &filePath
 
-		src, err := fileHeader.Open()
-		if err != nil {
-			return ProfileResponse{}, err
-		}
-		defer src.Close()
+			src, err := fileHeader.Open()
+			if err != nil {
+				return ProfileResponse{}, err
+			}
+			defer src.Close()
 
-		dst, err := os.Create(filePath)
-		if err != nil {
-			return ProfileResponse{}, err
-		}
-		defer dst.Close()
+			dst, err := os.Create(filePath)
+			if err != nil {
+				return ProfileResponse{}, err
+			}
+			defer dst.Close()
 
-		if _, err := io.Copy(dst, src); err != nil {
-			return ProfileResponse{}, err
+			if _, err := io.Copy(dst, src); err != nil {
+				return ProfileResponse{}, err
+			}
 		}
 	}
 
@@ -158,5 +168,6 @@ func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address, fullname, ema
 
 	return resp, nil
 }
+
 
 
