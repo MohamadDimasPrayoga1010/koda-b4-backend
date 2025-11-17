@@ -289,7 +289,6 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 		}
 		variantRows.Close()
 
-		// sizes
 		sizeRows, _ := db.Query(ctx,
 			`SELECT s.id, s.name, s.additional_price
 			 FROM sizes s
@@ -304,8 +303,8 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 
 		imageRows, _ := db.Query(ctx,
 			`SELECT image, updated_at
-			 FROM product_images
-			 WHERE product_id=$1 AND deleted_at IS NULL`, p.ID)
+		 FROM product_images
+		 WHERE product_id=$1 AND deleted_at IS NULL`, p.ID)
 		for imageRows.Next() {
 			var img ProductImage
 			img.ProductID = p.ID
@@ -319,7 +318,6 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 
 	return products, total, nil
 }
-
 
 func GetProductByID(db *pgxpool.Pool, productID int64) (ProductResponse, error) {
 	ctx := context.Background()
