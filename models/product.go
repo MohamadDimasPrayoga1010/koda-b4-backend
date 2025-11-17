@@ -104,6 +104,13 @@ type ProductFilter struct {
 	PriceMax   *float64 `json:"priceMax" form:"priceMax"`
 }
 
+type ProductListResponse struct {
+    Success    bool        `json:"success"`
+    Message    string      `json:"message"`
+    Pagination interface{} `json:"pagination"`
+    Links      interface{} `json:"links"`
+    Data       interface{} `json:"data"`
+}
 
 func CreateProduct(db *pgxpool.Pool, req ProductRequest, imageFiles []string) (ProductResponse, error) {
 	ctx := context.Background()
