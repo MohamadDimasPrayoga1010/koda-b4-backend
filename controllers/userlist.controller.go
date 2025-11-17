@@ -389,7 +389,7 @@ func (auc *UserController) EditUser(ctx *gin.Context) {
 			Message: "Gagal update user",
 			Data:    err.Error(),
 		})
-		return
+		return 
 	}
 
 	ctx.JSON(200, models.Response{
