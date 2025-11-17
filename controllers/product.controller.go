@@ -193,7 +193,7 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "10"))
 	search := ctx.Query("search")
 	sortBy := ctx.DefaultQuery("sort_by", "created_at")
-	order := strings.ToUpper(ctx.DefaultQuery("order", "DESC"))
+	order := strings.ToUpper(ctx.DefaultQuery("order", "ASC"))
 	if order != "ASC" && order != "DESC" {
 		order = "ASC"
 	}
@@ -204,20 +204,20 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 	cached, err := libs.RedisClient.Get(libs.Ctx, cacheKey).Result()
 	if err == nil && cached != "" {
 		var products []models.ProductResponse
-		json.Unmarshal([]byte(cached), &products)
-
-		pagination, links := libs.BuildHateoasGlobal("/products", page, limit, len(products), ctx.Request.URL.Query())
-
-		response := models.ProductListResponse{
-			Success:    true,
-			Message:    "Products fetched from cache",
-			Pagination: pagination,
-			Links:      links,
-			Data:       products,
+		if err := json.Unmarshal([]byte(cached), &products); err == nil {
+			pagination, links := libs.BuildHateoasGlobal("/products", page, limit, len(products), ctx.Request.URL.Query())
+			response := models.ProductListResponse{
+				Success:    true,
+				Message:    "Products fetched from cache",
+				Pagination: pagination,
+				Links:      links,
+				Data:       products,
+			}
+			ctx.JSON(http.StatusOK, response)
+			return
+		} else {
+			libs.RedisClient.Del(libs.Ctx, cacheKey)
 		}
-
-		ctx.JSON(http.StatusOK, response)
-		return
 	}
 
 	products, total, err := models.GetProducts(pc.DB, page, limit, search, sortBy, order)
@@ -245,6 +245,7 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, response)
 }
+
 
 
 // GetProductByID godoc

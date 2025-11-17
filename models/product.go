@@ -301,25 +301,24 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 		}
 		sizeRows.Close()
 
-
-		imageRows, err := db.Query(ctx,
-			`SELECT image, updated_at, deleted_at 
-     FROM product_images 
-     WHERE product_id=$1 AND deleted_at IS NULL`, p.ID)
-		if err == nil {
-			for imageRows.Next() {
-				var img ProductImage
-				img.ProductID = p.ID
-				imageRows.Scan(&img.Image, &img.UpdatedAt, &img.DeletedAt)
-				p.Images = append(p.Images, img)
-			}
-			imageRows.Close()
+		imageRows, _ := db.Query(ctx,
+			`SELECT image, updated_at
+			 FROM product_images
+			 WHERE product_id=$1 AND deleted_at IS NULL`, p.ID)
+		for imageRows.Next() {
+			var img ProductImage
+			img.ProductID = p.ID
+			imageRows.Scan(&img.Image, &img.UpdatedAt)
+			p.Images = append(p.Images, img)
 		}
+		imageRows.Close()
 
+		products = append(products, p)
 	}
 
 	return products, total, nil
 }
+
 
 func GetProductByID(db *pgxpool.Pool, productID int64) (ProductResponse, error) {
 	ctx := context.Background()
