@@ -91,7 +91,7 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 				return true
 			}
 		}
-		return false
+		return false 
 	}
 
 	uploadDir := "./uploads/products"
