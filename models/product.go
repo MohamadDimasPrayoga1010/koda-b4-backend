@@ -508,52 +508,52 @@ type ProductDetail struct {
 	ID          int64                    `json:"id"`
 	Title       string                   `json:"title"`
 	Description string                   `json:"description"`
-	BasePrice   float64                  `json:"base_price"`
+	BasePrice   float64                  `json:"basePrice"`
 	Stock       int                      `json:"stock"`
-	CategoryID  int64                    `json:"category_id"`
+	CategoryID  int64                    `json:"categoryId"`
 	Variant     *Variant                 `json:"variant,omitempty"`
 	Sizes       []Size                   `json:"sizes"`
 	Images      []ProductImage           `json:"images"`
 	Recommended []RecommendedProductInfo `json:"recommended"`
-	CreatedAt   time.Time                `json:"created_at"`
-	UpdatedAt   time.Time                `json:"updated_at"`
+	CreatedAt   time.Time                `json:"createdAt"`
+	UpdatedAt   time.Time                `json:"updatedAt"`
 }
 
 type RecommendedProductInfo struct {
 	ID          int64          `json:"id"`
 	Title       string         `json:"title"`
 	Description string         `json:"description"`
-	BasePrice   float64        `json:"base_price"`
+	BasePrice   float64        `json:"basePrice"`
 	Stock       int            `json:"stock"`
-	CategoryID  int64          `json:"category_id"`
+	CategoryID  int64          `json:"categoryId"`
 	Variant     *Variant       `json:"variant,omitempty"`
 	Sizes       []Size         `json:"sizes"`
 	Images      []ProductImage `json:"images"`
-	CreatedAt   time.Time      `json:"created_at"`
-	UpdatedAt   time.Time      `json:"updated_at"`
+	CreatedAt   time.Time      `json:"createdAt"`
+	UpdatedAt   time.Time      `json:"updatedAt"`
 }
 
 type RecommendedProduct struct {
-	ProductID     int64 `json:"product_id"`
-	RecommendedID int64 `json:"recommended_id"`
+	ProductID     int64 `json:"productId"`
+	RecommendedID int64 `json:"recommendedId"`
 }
 
 type Cart struct {
 	ID        int64     `json:"id"`
-	UserID    int64     `json:"user_id"`
-	ProductID int64     `json:"product_id"`
+	UserID    int64     `json:"userId"`
+	ProductID int64     `json:"productId"`
 	SizeID    *int64    `json:"size_id,omitempty"`
-	VariantID *int64    `json:"variant_id,omitempty"`
+	VariantID *int64    `json:"variantId,omitempty"`
 	Quantity  int       `json:"quantity"`
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type CartItemResponse struct {
 	ID        int64   `json:"id"`
-	ProductID int64   `json:"product_id"`
+	ProductID int64   `json:"productId"`
 	Title     string  `json:"title"`
-	BasePrice float64 `json:"base_price"`
+	BasePrice float64 `json:"basePrice"`
 	Image     string  `json:"image"`
 	Size      string  `json:"size,omitempty"`
 	Variant   string  `json:"variant,omitempty"`
@@ -745,37 +745,37 @@ type OrderTransactionRequest struct {
 	Email           string `json:"email,omitempty"`
 	Phone           string `json:"phone,omitempty"`
 	Address         string `json:"address,omitempty"`
-	PaymentMethodID int64  `json:"payment_method_id"`
-	ShippingID      int64  `json:"shipping_id"`
-	UserID          int64  `json:"user_id"`
+	PaymentMethodID int64  `json:"paymentMethodId"`
+	ShippingID      int64  `json:"shippingId"`
+	UserID          int64  `json:"userId"`
 }
 
 type OrderTransactionItem struct {
 	ID          int64    `json:"id"`
-	ProductID   int64    `json:"product_id"`
-	ProductName string   `json:"product_name"`
+	ProductID   int64    `json:"productId"`
+	ProductName string   `json:"productName"`
 	Quantity    int      `json:"quantity"`
-	SizeID      *int64   `json:"size_id,omitempty"`
-	SizeName    *string  `json:"size_name,omitempty"`
-	VariantID   *int64   `json:"variant_id,omitempty"`
-	VariantName *string  `json:"variant_name,omitempty"`
+	SizeID      *int64   `json:"sizeId,omitempty"`
+	SizeName    *string  `json:"sizeName,omitempty"`
+	VariantID   *int64   `json:"variantId,omitempty"`
+	VariantName *string  `json:"variantName,omitempty"`
 	Subtotal    float64  `json:"subtotal"`
 }
 
 type OrderTransaction struct {
 	ID                int64                  `json:"id"`
-	UserID            int64                  `json:"user_id"`
+	UserID            int64                  `json:"userId"`
 	Fullname          string                 `json:"fullname"`
 	Email             string                 `json:"email"`
 	Phone             string                 `json:"phone"`
 	Address           string                 `json:"address"`
-	PaymentMethodName string                 `json:"payment_method_name"`
-	ShippingName      string                 `json:"shipping_name"`
-	InvoiceNumber     string                 `json:"invoice_number"`
+	PaymentMethodName string                 `json:"paymentMethodName"`
+	ShippingName      string                 `json:"shippingName"`
+	InvoiceNumber     string                 `json:"invoiceNumber"`
 	Total             float64                `json:"total"`
 	Status            string                 `json:"status"`
-	CreatedAt         time.Time              `json:"created_at"`
-	UpdatedAt         time.Time              `json:"updated_at"`
+	CreatedAt         time.Time              `json:"createdAt"`
+	UpdatedAt         time.Time              `json:"updatedAt"`
 	Items             []OrderTransactionItem `json:"items,omitempty"`
 }
 
