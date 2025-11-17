@@ -1238,16 +1238,19 @@ func (pc *ProductController) GetProductDetail(ctx *gin.Context) {
 			}
 
 			rec.Images = []models.ProductImage{}
-			imgRows, _ := pc.DB.Query(context.Background(),
-				`SELECT image, updated_at FROM product_images WHERE product_id=$1 ORDER BY updated_at ASC`, rec.ID)
-			for imgRows.Next() {
-				var img models.ProductImage
-				if err := imgRows.Scan(&img.Image, &img.UpdatedAt); err == nil {
-					img.ProductID = rec.ID
-					rec.Images = append(rec.Images, img)
-				}
+			var singleImage models.ProductImage
+			err = pc.DB.QueryRow(context.Background(),
+				`SELECT image, updated_at 
+     FROM product_images 
+     WHERE product_id=$1 
+     ORDER BY updated_at ASC 
+     LIMIT 1`, rec.ID).
+				Scan(&singleImage.Image, &singleImage.UpdatedAt)
+
+			if err == nil {
+				singleImage.ProductID = rec.ID
+				rec.Images = []models.ProductImage{singleImage}
 			}
-			imgRows.Close()
 
 			rec.Sizes = []models.Size{}
 			if rec.Variant == nil || rec.Variant.Name != "Food" {
