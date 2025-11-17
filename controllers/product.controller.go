@@ -13,8 +13,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/cloudinary/cloudinary-go/v2"
-	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -97,28 +95,12 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 	uploadDir := "./uploads/products"
 	os.MkdirAll(uploadDir, os.ModePerm)
 
-	cloudinaryApiKey := os.Getenv("CLOUDINARY_API_KEY")
-	useCloudinary := cloudinaryApiKey != ""
-
-	var cld *cloudinary.Cloudinary
-	if useCloudinary {
-		var err error
-		cld, err = cloudinary.NewFromURL(cloudinaryApiKey)
-		if err != nil {
-			ctx.JSON(500, models.Response{
-				Success: false,
-				Message: "Failed to initialize Cloudinary",
-				Data:    err.Error(),
-			})
-			return
-		}
-	}
+	useCloudinary := os.Getenv("CLOUDINARY_API_KEY") != ""
 
 	savedFiles := []string{}
-
 	files := req.Images
-	for _, file := range files {
 
+	for _, file := range files {
 		if file.Size > maxSize {
 			ctx.JSON(400, models.Response{
 				Success: false,
@@ -141,10 +123,7 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 
 		var filename string
 		if useCloudinary {
-			uploadResult, err := cld.Upload.Upload(ctx, file, uploader.UploadParams{
-				Folder:   "products",
-				PublicID: fmt.Sprintf("%d_%s", time.Now().UnixNano(), name),
-			})
+			url, err := libs.UploadFile(file, "products")
 			if err != nil {
 				ctx.JSON(500, models.Response{
 					Success: false,
@@ -153,7 +132,7 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 				})
 				return
 			}
-			filename = uploadResult.SecureURL
+			filename = url
 		} else {
 			filename = fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), name, ext)
 			fullPath := filepath.Join(uploadDir, filename)
@@ -180,6 +159,7 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 		return
 	}
 
+	// Clear cache Redis
 	iter := libs.RedisClient.Scan(libs.Ctx, 0, "products:*", 0).Iterator()
 	for iter.Next(libs.Ctx) {
 		libs.RedisClient.Del(libs.Ctx, iter.Val())
@@ -191,6 +171,7 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 		Data:    product,
 	})
 }
+
 
 // GetProduct godoc
 // @Summary Get list of products
