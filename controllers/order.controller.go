@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"coffeeder-backend/libs"
 	"coffeeder-backend/models"
 	"context"
 	"net/http"
@@ -38,6 +39,12 @@ func (tc *TransactionController) GetTransactions(ctx *gin.Context) {
 
 	page, _ := strconv.Atoi(pageStr)
 	limit, _ := strconv.Atoi(limitStr)
+	if page < 1 {
+		page = 1
+	}
+	if limit < 1 {
+		limit = 10
+	}
 	offset := (page - 1) * limit
 
 	transactions, err := models.GetAllTransactions(tc.DB, search, sort, order, limit, offset)
@@ -50,12 +57,38 @@ func (tc *TransactionController) GetTransactions(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(200, gin.H{
-		"success": true,
-		"message": "Transactions fetched successfully",
-		"data":    transactions,
-	})
+	var total int
+	totalQuery := "SELECT COUNT(*) FROM transactions t LEFT JOIN users u ON u.id = t.user_id WHERE 1=1"
+	var args []interface{}
+	if search != "" {
+		totalQuery += " AND (LOWER(u.fullname) LIKE LOWER($1) OR LOWER(t.invoice_number) LIKE LOWER($1))"
+		args = append(args, "%"+search+"%")
+	}
+
+	err = tc.DB.QueryRow(context.Background(), totalQuery, args...).Scan(&total)
+	if err != nil {
+		ctx.JSON(500, gin.H{
+			"success": false,
+			"message": "Failed to count transactions",
+			"data":    err.Error(),
+		})
+		return
+	}
+
+	pagination, links := libs.BuildHateoasGlobal("/transactions", page, limit, total, ctx.Request.URL.Query())
+
+	// Response menggunakan struct mirip ProductListResponse
+	response := models.ProductListResponse{
+		Success:    true,
+		Message:    "Transactions fetched successfully",
+		Pagination: pagination,
+		Links:      links,
+		Data:       transactions,
+	}
+
+	ctx.JSON(200, response)
 }
+
 
 // GetTransactionByID godoc
 // @Summary Get transaction by ID
@@ -103,7 +136,7 @@ func (tc *TransactionController) UpdateTransactionStatus(ctx *gin.Context) {
 	id := ctx.Param("id")
 
 	var req struct {
-		StatusID int64 `json:"status_id" binding:"required"`
+		StatusID int64 `json:"statusId" binding:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -142,8 +175,8 @@ func (tc *TransactionController) UpdateTransactionStatus(ctx *gin.Context) {
 		"success": true,
 		"message": "Transaction status updated successfully",
 		"data": map[string]interface{}{
-			"transaction_id": transactionID,
-			"new_status":     statusName,
+			"transactionId": transactionID,
+			"newStatus":     statusName,
 			"code":           200,
 		},
 	})
