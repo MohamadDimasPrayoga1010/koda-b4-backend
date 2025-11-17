@@ -279,7 +279,7 @@ type TransactionItemDetail struct {
 	DiscountPrice float64 `json:"discountPrice"`
 	Variant       *string `json:"variant,omitempty"`
 	Quantity      int     `json:"quantity"`
-	Subtotal      float64 `json:"subtotal"`
+	Subtotal      float64 `json:"subtotal"` 
 }
 
 func GetHistoryDetail(db *pgxpool.Pool, transactionID, userID int64) (*HistoryDetail, error) {
