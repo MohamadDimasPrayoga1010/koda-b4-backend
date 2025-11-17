@@ -97,7 +97,7 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 	uploadDir := "./uploads/products"
 	os.MkdirAll(uploadDir, os.ModePerm)
 
-	cloudinaryApiKey := os.Getenv("CLOUDNARY_API_KEY")
+	cloudinaryApiKey := os.Getenv("CLOUDINARY_API_KEY")
 	useCloudinary := cloudinaryApiKey != ""
 
 	var cld *cloudinary.Cloudinary
