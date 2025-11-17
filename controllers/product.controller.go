@@ -222,10 +222,10 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 
 	products, total, err := models.GetProducts(pc.DB, page, limit, search, sortBy, order)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, models.ProductListResponse{
-			Success: false,
-			Message: "Failed to fetch products",
-			Data:    nil,
+		ctx.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "Failed to fetch products",
+			"data":    err.Error(),
 		})
 		return
 	}

@@ -222,10 +222,7 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 	offset := (page - 1) * limit
 
 	allowedSortFields := map[string]bool{
-		"id":         true,
-		"title":      true,
-		"base_price": true,
-		"created_at": true,
+		"id": true, "title": true, "base_price": true, "created_at": true,
 	}
 	if !allowedSortFields[sortBy] {
 		sortBy = "created_at"
@@ -255,9 +252,8 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 		LEFT JOIN categories c ON c.id = p.category_id
 	`
 	if search != "" {
-		query += fmt.Sprintf(" WHERE LOWER(p.title) LIKE LOWER($%d) OR LOWER(p.description) LIKE LOWER($%d)", 1, 2)
+		query += fmt.Sprintf(" WHERE LOWER(p.title) LIKE LOWER($1) OR LOWER(p.description) LIKE LOWER($2)")
 	}
-
 	query += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortBy, order, argIndex, argIndex+1)
 	args = append(args, limit, offset)
 
@@ -272,10 +268,11 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 	for rows.Next() {
 		var p ProductResponse
 		var categoryName string
-		if err := rows.Scan(
+		err := rows.Scan(
 			&p.ID, &p.Title, &p.Description, &p.BasePrice, &p.Stock,
 			&p.Category.ID, &categoryName, &p.CreatedAt, &p.UpdatedAt,
-		); err != nil {
+		)
+		if err != nil {
 			continue
 		}
 		p.Category.Name = categoryName
@@ -292,6 +289,7 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 		}
 		variantRows.Close()
 
+		// sizes
 		sizeRows, _ := db.Query(ctx,
 			`SELECT s.id, s.name, s.additional_price
 			 FROM sizes s
@@ -305,7 +303,7 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 		sizeRows.Close()
 
 		imageRows, _ := db.Query(ctx,
-			`SELECT image, updated_at 
+			`SELECT image, updated_at
 			 FROM product_images
 			 WHERE product_id=$1 AND deleted_at IS NULL`, p.ID)
 		for imageRows.Next() {
@@ -321,6 +319,7 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 
 	return products, total, nil
 }
+
 
 func GetProductByID(db *pgxpool.Pool, productID int64) (ProductResponse, error) {
 	ctx := context.Background()
