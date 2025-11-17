@@ -523,9 +523,9 @@ func (pc *ProductController) GetProductImages(ctx *gin.Context) {
 	}
 
 	rows, err := pc.DB.Query(context.Background(),
-		`SELECT row_number() OVER (), image, updated_at, deleted_at
+		`SELECT image, updated_at, deleted_at
 		 FROM product_images 
-		 WHERE product_id=$1 AND deleted_at IS NULL`, productID)
+		 WHERE product_id=$1`, productID)
 	if err != nil {
 		ctx.JSON(500, models.Response{
 			Success: false,
@@ -539,8 +539,7 @@ func (pc *ProductController) GetProductImages(ctx *gin.Context) {
 	var images []models.ProductImage
 	for rows.Next() {
 		var img models.ProductImage
-		var idx int
-		if err := rows.Scan(&idx, &img.Image, &img.UpdatedAt, &img.DeletedAt); err != nil {
+		if err := rows.Scan(&img.Image, &img.UpdatedAt, &img.DeletedAt); err != nil {
 			continue
 		}
 		img.ProductID = productID
@@ -592,8 +591,9 @@ func (pc *ProductController) GetProductImageByID(ctx *gin.Context) {
 	err := pc.DB.QueryRow(context.Background(),
 		`SELECT image, updated_at, deleted_at
 		 FROM product_images 
-		 WHERE product_id=$1 AND id=$2 AND deleted_at IS NULL`,
-		productID, imageID).Scan(&img.Image, &img.UpdatedAt, &img.DeletedAt)
+		 WHERE product_id=$1 AND id=$2`,
+		productID, imageID,
+	).Scan(&img.Image, &img.UpdatedAt, &img.DeletedAt)
 
 	if err != nil {
 		ctx.JSON(404, models.Response{
@@ -611,6 +611,7 @@ func (pc *ProductController) GetProductImageByID(ctx *gin.Context) {
 		Data:    img,
 	})
 }
+
 
 // DeleteProductImage godoc
 // @Summary Delete a product image
@@ -638,7 +639,7 @@ func (pc *ProductController) DeleteProductImage(ctx *gin.Context) {
 		return
 	}
 
-	query := `UPDATE product_images SET deleted_at=NOW() WHERE product_id=$1 AND id=$2 AND deleted_at IS NULL`
+	query := `UPDATE product_images SET deleted_at=NOW() WHERE product_id=$1 AND id=$2 AND (deleted_at IS NULL OR deleted_at <= NOW())`
 	result, err := pc.DB.Exec(context.Background(), query, productID, imageID)
 	if err != nil {
 		ctx.JSON(500, models.Response{
@@ -662,6 +663,7 @@ func (pc *ProductController) DeleteProductImage(ctx *gin.Context) {
 		Message: "Product image deleted successfully",
 	})
 }
+
 
 // UpdateProductImage godoc
 // @Summary Update a product image
@@ -700,7 +702,7 @@ func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
 		return
 	}
 
-	const maxSize = 2 * 1024 * 1024
+	const maxSize = 2 * 1024 * 1024 // 2MB
 	if file.Size > maxSize {
 		ctx.JSON(400, models.Response{
 			Success: false,
@@ -723,24 +725,50 @@ func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
 		return
 	}
 
-	uploadDir := "./uploads/products"
-	os.MkdirAll(uploadDir, os.ModePerm)
-	newFilename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), strings.TrimSuffix(file.Filename, ext), ext)
-	fullPath := filepath.Join(uploadDir, newFilename)
 
-	if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
-		ctx.JSON(500, models.Response{
-			Success: false,
-			Message: "Failed to save image file",
-			Data:    err.Error(),
-		})
-		return
+	useCloudinary := os.Getenv("CLOUDINARY_API_KEY") != ""
+	var finalFilename string
+
+	if useCloudinary {
+		url, err := libs.UploadFile(file, "products")
+		if err != nil {
+			ctx.JSON(500, models.Response{
+				Success: false,
+				Message: "Failed to upload file to Cloudinary",
+				Data:    err.Error(),
+			})
+			return
+		}
+		finalFilename = url
+	} else {
+		uploadDir := "./uploads/products"
+		if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
+			ctx.JSON(500, models.Response{
+				Success: false,
+				Message: "Failed to create upload directory",
+				Data:    err.Error(),
+			})
+			return
+		}
+
+		newFilename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), strings.TrimSuffix(file.Filename, ext), ext)
+		fullPath := filepath.Join(uploadDir, newFilename)
+
+		if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
+			ctx.JSON(500, models.Response{
+				Success: false,
+				Message: "Failed to save image file",
+				Data:    err.Error(),
+			})
+			return
+		}
+		finalFilename = newFilename
 	}
 
 	query := `UPDATE product_images SET image=$1, updated_at=NOW() WHERE product_id=$2 AND id=$3 RETURNING image, updated_at`
 	var updatedImage string
 	var updatedAt time.Time
-	err = pc.DB.QueryRow(context.Background(), query, newFilename, productID, imageID).Scan(&updatedImage, &updatedAt)
+	err = pc.DB.QueryRow(context.Background(), query, finalFilename, productID, imageID).Scan(&updatedImage, &updatedAt)
 	if err != nil {
 		ctx.JSON(404, models.Response{
 			Success: false,
@@ -759,6 +787,7 @@ func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
 		},
 	})
 }
+
 
 // GetFavoriteProducts godoc
 // @Summary Get favorite products
