@@ -189,12 +189,14 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 // @Failure 500 {object} models.Response
 // @Router /admin/products [get]
 func (pc *ProductController) GetProducts(ctx *gin.Context) {
-
 	page, _ := strconv.Atoi(ctx.DefaultQuery("page", "1"))
 	limit, _ := strconv.Atoi(ctx.DefaultQuery("limit", "10"))
 	search := ctx.Query("search")
 	sortBy := ctx.DefaultQuery("sort_by", "created_at")
 	order := strings.ToUpper(ctx.DefaultQuery("order", "DESC"))
+	if order != "ASC" && order != "DESC" {
+		order = "ASC"
+	}
 
 	cacheKey := fmt.Sprintf("products:page:%d:limit:%d:search:%s:sort:%s:order:%s",
 		page, limit, search, sortBy, order)
@@ -204,32 +206,26 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 		var products []models.ProductResponse
 		json.Unmarshal([]byte(cached), &products)
 
-		prev := page - 1
-		if prev < 1 {
-			prev = 1
-		}
-		next := page + 1
+		pagination, links := libs.BuildHateoasGlobal("/products", page, limit, len(products), ctx.Request.URL.Query())
 
-		ctx.JSON(http.StatusOK, models.Response{
-			Success: true,
-			Message: "Products fetched from cache",
-			Data: gin.H{
-				"page":     page,
-				"limit":    limit,
-				"products": products,
-				"prev":     prev,
-				"next":     next,
-			},
-		})
+		response := models.ProductListResponse{
+			Success:    true,
+			Message:    "Products fetched from cache",
+			Pagination: pagination,
+			Links:      links,
+			Data:       products,
+		}
+
+		ctx.JSON(http.StatusOK, response)
 		return
 	}
 
 	products, total, err := models.GetProducts(pc.DB, page, limit, search, sortBy, order)
 	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, models.Response{
+		ctx.JSON(http.StatusInternalServerError, models.ProductListResponse{
 			Success: false,
 			Message: "Failed to fetch products",
-			Data:    err.Error(),
+			Data:    nil,
 		})
 		return
 	}
@@ -237,29 +233,19 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 	dataJSON, _ := json.Marshal(products)
 	libs.RedisClient.Set(libs.Ctx, cacheKey, dataJSON, 10*time.Minute)
 
-	prev := page - 1
-	if prev < 1 {
-		prev = 1
-	}
-	lastPage := (total + limit - 1) / limit
-	next := page + 1
-	if next > lastPage {
-		next = lastPage
+	pagination, links := libs.BuildHateoasGlobal("/products", page, limit, total, ctx.Request.URL.Query())
+
+	response := models.ProductListResponse{
+		Success:    true,
+		Message:    "Products fetched successfully",
+		Pagination: pagination,
+		Links:      links,
+		Data:       products,
 	}
 
-	ctx.JSON(http.StatusOK, models.Response{
-		Success: true,
-		Message: "Products fetched successfully",
-		Data: gin.H{
-			"page":     page,
-			"limit":    limit,
-			"products": products,
-			"prev":     prev,
-			"next":     next,
-			"total":    total,
-		},
-	})
+	ctx.JSON(http.StatusOK, response)
 }
+
 
 // GetProductByID godoc
 // @Summary Get a product by ID

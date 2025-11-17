@@ -231,10 +231,9 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 		sortBy = "created_at"
 	}
 	if order != "ASC" && order != "DESC" {
-		order = "DESC"
+		order = "ASC"
 	}
 
-	// Hitung total
 	totalQuery := "SELECT COUNT(*) FROM products p"
 	args := []interface{}{}
 	argIndex := 1
@@ -249,7 +248,6 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 		return nil, 0, err
 	}
 
-	// Query produk
 	query := `
 		SELECT p.id, p.title, p.description, p.base_price, p.stock, 
 		       p.category_id, c.name AS category_name, p.created_at, p.updated_at
@@ -259,6 +257,7 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 	if search != "" {
 		query += fmt.Sprintf(" WHERE LOWER(p.title) LIKE LOWER($%d) OR LOWER(p.description) LIKE LOWER($%d)", 1, 2)
 	}
+
 	query += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortBy, order, argIndex, argIndex+1)
 	args = append(args, limit, offset)
 
@@ -273,16 +272,14 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 	for rows.Next() {
 		var p ProductResponse
 		var categoryName string
-		err := rows.Scan(
+		if err := rows.Scan(
 			&p.ID, &p.Title, &p.Description, &p.BasePrice, &p.Stock,
 			&p.Category.ID, &categoryName, &p.CreatedAt, &p.UpdatedAt,
-		)
-		if err != nil {
+		); err != nil {
 			continue
 		}
 		p.Category.Name = categoryName
 
-		// variants
 		variantRows, _ := db.Query(ctx,
 			`SELECT v.id, v.name, v.additional_price 
 			 FROM variants v
@@ -295,7 +292,6 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 		}
 		variantRows.Close()
 
-		// sizes
 		sizeRows, _ := db.Query(ctx,
 			`SELECT s.id, s.name, s.additional_price
 			 FROM sizes s
@@ -308,7 +304,6 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 		}
 		sizeRows.Close()
 
-		// images
 		imageRows, _ := db.Query(ctx,
 			`SELECT image, updated_at 
 			 FROM product_images
