@@ -21,7 +21,6 @@ CREATE TABLE carts (
     updated_at TIMESTAMP DEFAULT now()
 );
 
--- index supaya pencarian cepat
 CREATE INDEX idx_carts_user ON carts(user_id);
 CREATE INDEX idx_carts_product ON carts(product_id);
 

@@ -1,7 +1,9 @@
-CREATE TABLE variants(
+CREATE TABLE variants (
     id SERIAL PRIMARY KEY,
-    name VARCHAR(100) NOT NULL UNIQUE
-); 
+    name VARCHAR(50) NOT NULL,
+    additional_price INT DEFAULT 0
+);
+
 
 CREATE TABLE categories(
     id SERIAL PRIMARY KEY,
@@ -16,7 +18,6 @@ CREATE TABLE products(
     description VARCHAR(250),
     stock INT,
     category_id BIGINT REFERENCES categories(id),
-    variant_id BIGINT REFERENCES variants(id),
     base_price NUMERIC,
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now(),
@@ -26,6 +27,14 @@ CREATE TABLE products(
 ALTER TABLE products ALTER COLUMN deleted_at SET DEFAULT NULL;
 ALTER TABLE products
 ADD COLUMN is_favorite BOOLEAN DEFAULT false;
+
+CREATE TABLE product_variants (
+    id SERIAL PRIMARY KEY,
+    product_id BIGINT NOT NULL REFERENCES products(id) ON DELETE CASCADE,
+    variant_id BIGINT NOT NULL REFERENCES variants(id),
+    created_at TIMESTAMP DEFAULT now(),
+    updated_at TIMESTAMP DEFAULT now()
+);
 
 CREATE TABLE products_categories(
     product_id BIGINT REFERENCES products(id),
