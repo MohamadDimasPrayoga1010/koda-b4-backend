@@ -13,6 +13,8 @@ import (
 	"strings"
 	"time"
 
+	"github.com/cloudinary/cloudinary-go/v2"
+	"github.com/cloudinary/cloudinary-go/v2/api/uploader"
 	"github.com/gin-gonic/gin"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
@@ -81,6 +83,8 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 		}
 	}
 
+	maxSize := int64(2 * 1024 * 1024)
+	allowedExts := []string{".jpg", ".jpeg", ".png"}
 	contains := func(arr []string, s string) bool {
 		for _, v := range arr {
 			if v == s {
@@ -90,11 +94,25 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 		return false
 	}
 
-	maxSize := int64(2 * 1024 * 1024)
-	allowedExts := []string{".jpg", ".jpeg", ".png"}
-
 	uploadDir := "./uploads/products"
 	os.MkdirAll(uploadDir, os.ModePerm)
+
+	cloudinaryApiKey := os.Getenv("CLOUDNARY_API_KEY")
+	useCloudinary := cloudinaryApiKey != ""
+
+	var cld *cloudinary.Cloudinary
+	if useCloudinary {
+		var err error
+		cld, err = cloudinary.NewFromURL(cloudinaryApiKey)
+		if err != nil {
+			ctx.JSON(500, models.Response{
+				Success: false,
+				Message: "Failed to initialize Cloudinary",
+				Data:    err.Error(),
+			})
+			return
+		}
+	}
 
 	savedFiles := []string{}
 
@@ -121,16 +139,32 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 		name := strings.TrimSuffix(file.Filename, ext)
 		name = strings.ReplaceAll(name, " ", "_")
 
-		filename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), name, ext)
-		fullPath := filepath.Join(uploadDir, filename)
-
-		if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
-			ctx.JSON(500, models.Response{
-				Success: false,
-				Message: "Failed to save file",
-				Data:    err.Error(),
+		var filename string
+		if useCloudinary {
+			uploadResult, err := cld.Upload.Upload(ctx, file, uploader.UploadParams{
+				Folder:   "products",
+				PublicID: fmt.Sprintf("%d_%s", time.Now().UnixNano(), name),
 			})
-			return
+			if err != nil {
+				ctx.JSON(500, models.Response{
+					Success: false,
+					Message: "Failed to upload file to Cloudinary",
+					Data:    err.Error(),
+				})
+				return
+			}
+			filename = uploadResult.SecureURL
+		} else {
+			filename = fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), name, ext)
+			fullPath := filepath.Join(uploadDir, filename)
+			if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
+				ctx.JSON(500, models.Response{
+					Success: false,
+					Message: "Failed to save file locally",
+					Data:    err.Error(),
+				})
+				return
+			}
 		}
 
 		savedFiles = append(savedFiles, filename)
@@ -245,7 +279,6 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 		},
 	})
 }
-
 
 // GetProductByID godoc
 // @Summary Get a product by ID
@@ -395,7 +428,6 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 	})
 }
 
-
 // DeleteProduct godoc
 // @Summary Delete a product
 // @Description Menghapus product berdasarkan ID
@@ -485,7 +517,6 @@ func (pc *ProductController) DeleteProduct(ctx *gin.Context) {
 		return
 	}
 
-
 	if err := tx.Commit(ctxDB); err != nil {
 		ctx.JSON(500, models.Response{
 			Success: false,
@@ -500,7 +531,6 @@ func (pc *ProductController) DeleteProduct(ctx *gin.Context) {
 		Message: "Product deleted successfully",
 	})
 }
-
 
 // GetProductImages godoc
 // @Summary Get all images of a product
@@ -1066,8 +1096,6 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 	})
 }
 
-
-
 // GetProductDetail godoc
 // @Summary Get product detail by ID
 // @Description Returns detailed information of a product including images, sizes, and recommended products
@@ -1321,7 +1349,6 @@ func (pc *ProductController) AddToCart(ctx *gin.Context) {
 	})
 }
 
-
 func (pc *ProductController) DeleteCart(ctx *gin.Context) {
 
 	userIDValue, exists := ctx.Get("userID")
@@ -1386,7 +1413,6 @@ func (pc *ProductController) DeleteCart(ctx *gin.Context) {
 		Message: "Cart item deleted successfully",
 	})
 }
-
 
 // GetCart godoc
 // @Summary Get user's cart
