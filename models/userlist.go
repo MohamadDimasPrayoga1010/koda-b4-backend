@@ -20,9 +20,9 @@ type UserList struct {
 	Fullname  string    `json:"fullname"`
 	Email     string    `json:"email"`
 	Role      string    `json:"role"`
-	Profile   *Profile `json:"profile,omitempty"` 
-	CreatedAt time.Time `json:"created_at"`
-	UpdatedAt time.Time `json:"updated_at"`
+	Profile   *Profile  `json:"profile,omitempty"`
+	CreatedAt time.Time `json:"createdAt"`
+	UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type Profile struct {
@@ -32,15 +32,14 @@ type Profile struct {
 }
 
 type AdminUserRequest struct {
-    Fullname string                  `form:"fullname" binding:"required"`
-    Email    string                  `form:"email" binding:"required,email"`
-    Password string                  `form:"password" binding:"required,min=6"`
-    Phone    string                  `form:"phone"`
-    Address  string                  `form:"address"`
-    Image    *multipart.FileHeader   `form:"image"`
-    Role     string                  `form:"role" binding:"required"`
+	Fullname string                `form:"fullname" binding:"required"`
+	Email    string                `form:"email" binding:"required,email"`
+	Password string                `form:"password" binding:"required,min=6"`
+	Phone    string                `form:"phone"`
+	Address  string                `form:"address"`
+	Image    *multipart.FileHeader `form:"image"`
+	Role     string                `form:"role" binding:"required"`
 }
-
 
 func AddUser(db *pgxpool.Pool, fullname, email, password, role string, phone, address string, fileHeader *multipart.FileHeader) (*UserList, *Profile, error) {
 	ctx := context.Background()
@@ -118,7 +117,6 @@ func AddUser(db *pgxpool.Pool, fullname, email, password, role string, phone, ad
 
 	return &u, p, nil
 }
-
 
 func UpdateUser(db *pgxpool.Pool, userID int64, fullname, email, password, phone, address string, fileHeader *multipart.FileHeader) (*UserList, *Profile, error) {
 	ctx := context.Background()
@@ -227,13 +225,14 @@ func UpdateUser(db *pgxpool.Pool, userID int64, fullname, email, password, phone
 	var u UserList
 	var p Profile
 	err := db.QueryRow(ctx, `
-		SELECT u.id, u.fullname, u.email, u.role, p.image, p.phone, p.address, u.created_at, u.updated_at
-		FROM users u
-		LEFT JOIN profile p ON p.user_id=u.id
-		WHERE u.id=$1
-	`, userID).Scan(
+	SELECT u.id, u.fullname, u.email, u.role, p.image, p.phone, p.address, u.created_at, u.updated_at
+	FROM users u
+	LEFT JOIN profile p ON p.user_id=u.id
+	WHERE u.id=$1
+`, userID).Scan(
 		&u.ID, &u.Fullname, &u.Email, &u.Role, &p.Image, &p.Phone, &p.Address, &u.CreatedAt, &u.UpdatedAt,
 	)
+
 	if err != nil {
 		return nil, nil, err
 	}
