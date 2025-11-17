@@ -883,7 +883,10 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 	pmin := ctx.Query("price_min")
 	pmax := ctx.Query("price_max")
 	searchQuery := ctx.Query("q")
+
 	sortBy := ctx.DefaultQuery("sortby", "name")
+	order := ctx.DefaultQuery("order", "asc")
+
 	pageStr := ctx.DefaultQuery("page", "1")
 	limitStr := ctx.DefaultQuery("limit", "10")
 
@@ -912,57 +915,59 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 			filter.PriceMin = &f
 		}
 	}
+
 	if pmax != "" {
 		if f, err := strconv.ParseFloat(pmax, 64); err == nil {
 			filter.PriceMax = &f
 		}
 	}
+
 	filter.SortBy = sortBy
 
-	cacheKey := fmt.Sprintf(
-		"filter:cat:%v:fav:%s:pmin:%s:pmax:%s:q:%s:sort:%s:page:%d:limit:%d",
-		cats, fav, pmin, pmax, searchQuery, sortBy, page, limit,
-	)
+	countQuery := `SELECT COUNT(*) FROM products p WHERE 1=1`
+	var countArgs []interface{}
+	countIdx := 1
 
-	cached, err := libs.RedisClient.Get(libs.Ctx, cacheKey).Result()
-	if err == nil && cached != "" {
-		var products []models.ProductResponseFilter
-		json.Unmarshal([]byte(cached), &products)
-
-		prevPage := page - 1
-		if prevPage < 1 {
-			prevPage = 1
-		}
-		nextPage := page + 1
-
-		ctx.JSON(http.StatusOK, gin.H{
-			"success":   true,
-			"message":   "Filtered products fetched (cache)",
-			"page":      page,
-			"limit":     limit,
-			"prev_page": prevPage,
-			"next_page": nextPage,
-			"data":      products,
-		})
-		return
+	if len(filter.Categories) > 0 {
+		countQuery += fmt.Sprintf(" AND p.category_id = ANY($%d)", countIdx)
+		countArgs = append(countArgs, filter.Categories)
+		countIdx++
 	}
+
+	if filter.IsFavorite != nil {
+		countQuery += fmt.Sprintf(" AND p.is_favorite = $%d", countIdx)
+		countArgs = append(countArgs, *filter.IsFavorite)
+		countIdx++
+	}
+
+	if filter.PriceMin != nil {
+		countQuery += fmt.Sprintf(" AND p.base_price >= $%d", countIdx)
+		countArgs = append(countArgs, *filter.PriceMin)
+		countIdx++
+	}
+
+	if filter.PriceMax != nil {
+		countQuery += fmt.Sprintf(" AND p.base_price <= $%d", countIdx)
+		countArgs = append(countArgs, *filter.PriceMax)
+		countIdx++
+	}
+
+	if searchQuery != "" {
+		countQuery += fmt.Sprintf(" AND LOWER(p.title) LIKE LOWER($%d)", countIdx)
+		countArgs = append(countArgs, "%"+searchQuery+"%")
+		countIdx++
+	}
+
+	var totalItems int
+	_ = pc.DB.QueryRow(context.Background(), countQuery, countArgs...).Scan(&totalItems)
 
 	offset := (page - 1) * limit
 
 	query := `
 		SELECT 
-			p.id, 
-			p.title, 
-			p.description, 
-			p.base_price,
-			p.stock,
-			p.category_id,
-			p.created_at,
-			p.updated_at,
-			(
-				SELECT image FROM product_images 
-				WHERE product_id = p.id LIMIT 1
-			) AS image,
+			p.id, p.title, p.description, p.base_price, p.stock, p.category_id,
+			p.created_at, p.updated_at,
+			(SELECT image FROM product_images WHERE product_id = p.id LIMIT 1) AS image,
 			COALESCE(json_agg(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL), '[]') AS sizes
 		FROM products p
 		LEFT JOIN product_sizes ps ON ps.product_id = p.id
@@ -978,38 +983,45 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 		args = append(args, filter.Categories)
 		argIndex++
 	}
+
 	if filter.IsFavorite != nil {
 		query += fmt.Sprintf(" AND p.is_favorite = $%d", argIndex)
 		args = append(args, *filter.IsFavorite)
 		argIndex++
 	}
+
 	if filter.PriceMin != nil {
 		query += fmt.Sprintf(" AND p.base_price >= $%d", argIndex)
 		args = append(args, *filter.PriceMin)
 		argIndex++
 	}
+
 	if filter.PriceMax != nil {
 		query += fmt.Sprintf(" AND p.base_price <= $%d", argIndex)
 		args = append(args, *filter.PriceMax)
 		argIndex++
 	}
+
 	if searchQuery != "" {
-		query += fmt.Sprintf(" AND (LOWER(p.title) LIKE LOWER($%d))", argIndex)
+		query += fmt.Sprintf(" AND LOWER(p.title) LIKE LOWER($%d)", argIndex)
 		args = append(args, "%"+searchQuery+"%")
 		argIndex++
 	}
 
-	query += `
-		GROUP BY p.id
-	`
+	query += " GROUP BY p.id "
+
+	order = strings.ToUpper(order)
+	if order != "ASC" && order != "DESC" {
+		order = "ASC"
+	}
 
 	switch filter.SortBy {
 	case "baseprice":
-		query += " ORDER BY p.base_price ASC, p.id ASC"
+		query += fmt.Sprintf(" ORDER BY p.base_price %s", order)
 	case "name":
-		query += " ORDER BY p.title ASC, p.id ASC"
+		query += fmt.Sprintf(" ORDER BY p.title %s", order)
 	default:
-		query += " ORDER BY p.id ASC"
+		query += fmt.Sprintf(" ORDER BY p.id %s", order)
 	}
 
 	query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
@@ -1038,7 +1050,7 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 		rows.Scan(&id, &title, &desc, &price, &stock, &categoryID, &createdAt, &updatedAt, &image, &sizesRaw)
 
 		var sizes []string
-		json.Unmarshal(sizesRaw, &sizes)
+		_ = json.Unmarshal(sizesRaw, &sizes)
 
 		variantRows, _ := pc.DB.Query(context.Background(),
 			`SELECT v.id, v.name, v.additional_price
@@ -1076,25 +1088,24 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 		})
 	}
 
-	dataJSON, _ := json.Marshal(products)
-	libs.RedisClient.Set(libs.Ctx, cacheKey, dataJSON, 10*time.Minute)
-
-	prevPage := page - 1
-	if prevPage < 1 {
-		prevPage = 1
-	}
-	nextPage := page + 1
+	pagination, links := libs.BuildHateoasGlobal(
+		"/products",
+		page,
+		limit,
+		totalItems,
+		ctx.Request.URL.Query(),
+	)
 
 	ctx.JSON(http.StatusOK, gin.H{
-		"success":   true,
-		"message":   "Filtered products fetched successfully",
-		"page":      page,
-		"limit":     limit,
-		"prev_page": prevPage,
-		"next_page": nextPage,
-		"data":      products,
+		"success":    true,
+		"message":    "Filtered products fetched successfully",
+		"pagination": pagination,
+		"links":      links,
+		"data":       products,
 	})
 }
+
+
 
 // GetProductDetail godoc
 // @Summary Get product detail by ID
