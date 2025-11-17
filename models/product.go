@@ -11,8 +11,6 @@ import (
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
-
-
 type Product struct {
 	ID          int64          `json:"id"`
 	Title       string         `json:"title"`
@@ -29,8 +27,8 @@ type Product struct {
 }
 
 type SizeObj struct {
-    ID   int64  `json:"id"`
-    Name string `json:"name"`
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 type ProductResponse struct {
@@ -44,7 +42,7 @@ type ProductResponse struct {
 	CreatedAt   time.Time       `json:"createdAt"`
 	UpdatedAt   time.Time       `json:"updatedAt"`
 	Images      []ProductImage  `json:"images,omitempty"`
-	Sizes       []Size         `json:"sizes,omitempty"`
+	Sizes       []Size          `json:"sizes,omitempty"`
 }
 
 type ProductResponseFilter struct {
@@ -105,11 +103,11 @@ type ProductFilter struct {
 }
 
 type ProductListResponse struct {
-    Success    bool        `json:"success"`
-    Message    string      `json:"message"`
-    Pagination interface{} `json:"pagination"`
-    Links      interface{} `json:"links"`
-    Data       interface{} `json:"data"`
+	Success    bool        `json:"success"`
+	Message    string      `json:"message"`
+	Pagination interface{} `json:"pagination"`
+	Links      interface{} `json:"links"`
+	Data       interface{} `json:"data"`
 }
 
 func CreateProduct(db *pgxpool.Pool, req ProductRequest, imageFiles []string) (ProductResponse, error) {
@@ -329,7 +327,6 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 	return products, total, nil
 }
 
-
 func GetProductByID(db *pgxpool.Pool, productID int64) (ProductResponse, error) {
 	ctx := context.Background()
 	var p ProductResponse
@@ -503,7 +500,6 @@ func UpdateProduct(db *pgxpool.Pool, productID int64, req ProductRequest, imageF
 	return product, nil
 }
 
-
 type ProductDetail struct {
 	ID          int64                    `json:"id"`
 	Title       string                   `json:"title"`
@@ -662,7 +658,7 @@ func DeleteCart(db *pgxpool.Pool, userID int64, cartID int64) error {
 	res, err := db.Exec(ctx, `
 		DELETE FROM carts 
 		WHERE id=$1 AND user_id=$2
-	`, cartID, userID) 
+	`, cartID, userID)
 	if err != nil {
 		return err
 	}
@@ -673,8 +669,6 @@ func DeleteCart(db *pgxpool.Pool, userID int64, cartID int64) error {
 
 	return nil
 }
-
-
 
 func GetCartByUser(db *pgxpool.Pool, userID int64) (CartResponse, error) {
 	ctx := context.Background()
@@ -718,7 +712,7 @@ func GetCartByUser(db *pgxpool.Pool, userID int64) (CartResponse, error) {
 	for rows.Next() {
 		var item CartItemResponse
 		if err := rows.Scan(
-			&item.ID,         
+			&item.ID,
 			&item.ProductID,
 			&item.Title,
 			&item.BasePrice,
@@ -751,15 +745,15 @@ type OrderTransactionRequest struct {
 }
 
 type OrderTransactionItem struct {
-	ID          int64    `json:"id"`
-	ProductID   int64    `json:"productId"`
-	ProductName string   `json:"productName"`
-	Quantity    int      `json:"quantity"`
-	SizeID      *int64   `json:"sizeId,omitempty"`
-	SizeName    *string  `json:"sizeName,omitempty"`
-	VariantID   *int64   `json:"variantId,omitempty"`
-	VariantName *string  `json:"variantName,omitempty"`
-	Subtotal    float64  `json:"subtotal"`
+	ID          int64   `json:"id"`
+	ProductID   int64   `json:"productId"`
+	ProductName string  `json:"productName"`
+	Quantity    int     `json:"quantity"`
+	SizeID      *int64  `json:"sizeId,omitempty"`
+	SizeName    *string `json:"sizeName,omitempty"`
+	VariantID   *int64  `json:"variantId,omitempty"`
+	VariantName *string `json:"variantName,omitempty"`
+	Subtotal    float64 `json:"subtotal"`
 }
 
 type OrderTransaction struct {
@@ -906,6 +900,11 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 		}
 	}
 
+	_, err = tx.Exec(ctx, `DELETE FROM carts WHERE user_id=$1`, req.UserID)
+	if err != nil {
+		return nil, errors.New("failed to clear cart")
+	}
+
 	if err := tx.Commit(ctx); err != nil {
 		return nil, err
 	}
@@ -929,5 +928,3 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 
 	return order, nil
 }
-
-
