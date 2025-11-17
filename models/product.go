@@ -265,56 +265,63 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 
 	var products []ProductResponse
 
-	for rows.Next() {
-		var p ProductResponse
-		var categoryName string
-		err := rows.Scan(
-			&p.ID, &p.Title, &p.Description, &p.BasePrice, &p.Stock,
-			&p.Category.ID, &categoryName, &p.CreatedAt, &p.UpdatedAt,
-		)
-		if err != nil {
-			continue
-		}
-		p.Category.Name = categoryName
+for rows.Next() {
+    var p ProductResponse
+    var categoryName string
+    err := rows.Scan(
+        &p.ID, &p.Title, &p.Description, &p.BasePrice, &p.Stock,
+        &p.Category.ID, &categoryName, &p.CreatedAt, &p.UpdatedAt,
+    )
+    if err != nil {
+        continue
+    }
+    p.Category.Name = categoryName
 
-		variantRows, _ := db.Query(ctx,
-			`SELECT v.id, v.name, v.additional_price 
-			 FROM variants v
-			 JOIN product_variants pv ON pv.variant_id = v.id
-			 WHERE pv.product_id = $1`, p.ID)
-		for variantRows.Next() {
-			var v Variant
-			variantRows.Scan(&v.ID, &v.Name, &v.AdditionalPrice)
-			p.Variants = append(p.Variants, v)
-		}
-		variantRows.Close()
+    p.Variants = make([]Variant, 0)
+    p.Sizes = make([]Size, 0)
+    p.Images = make([]ProductImage, 0)
 
-		sizeRows, _ := db.Query(ctx,
-			`SELECT s.id, s.name, s.additional_price
-			 FROM sizes s
-			 JOIN product_sizes ps ON ps.size_id = s.id
-			 WHERE ps.product_id = $1`, p.ID)
-		for sizeRows.Next() {
-			var s Size
-			sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice)
-			p.Sizes = append(p.Sizes, s)
-		}
-		sizeRows.Close()
+    variantRows, _ := db.Query(ctx,
+        `SELECT v.id, v.name, v.additional_price 
+         FROM variants v
+         JOIN product_variants pv ON pv.variant_id = v.id
+         WHERE pv.product_id = $1`, p.ID)
+    for variantRows.Next() {
+        var v Variant
+        variantRows.Scan(&v.ID, &v.Name, &v.AdditionalPrice)
+        p.Variants = append(p.Variants, v)
+    }
+    variantRows.Close()
 
-		imageRows, _ := db.Query(ctx,
-			`SELECT image, updated_at
-			 FROM product_images
-			 WHERE product_id=$1 AND deleted_at IS NULL`, p.ID)
-		for imageRows.Next() {
-			var img ProductImage
-			img.ProductID = p.ID
-			imageRows.Scan(&img.Image, &img.UpdatedAt)
-			p.Images = append(p.Images, img)
-		}
-		imageRows.Close()
+    sizeRows, _ := db.Query(ctx,
+        `SELECT s.id, s.name, s.additional_price
+         FROM sizes s
+         JOIN product_sizes ps ON ps.size_id = s.id
+         WHERE ps.product_id = $1`, p.ID)
+    for sizeRows.Next() {
+        var s Size
+        sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice)
+        p.Sizes = append(p.Sizes, s)
+    }
+    sizeRows.Close()
 
-		products = append(products, p)
-	}
+    imageRows, _ := db.Query(ctx,
+        `SELECT image, updated_at
+         FROM product_images
+         WHERE product_id=$1 AND deleted_at IS NULL`, p.ID)
+    for imageRows.Next() {
+        var img ProductImage
+        img.ProductID = p.ID
+        if err := imageRows.Scan(&img.Image, &img.UpdatedAt); err != nil {
+            continue
+        }
+        p.Images = append(p.Images, img)
+    }
+    imageRows.Close()
+
+    products = append(products, p)
+}
+
 
 	return products, total, nil
 }
