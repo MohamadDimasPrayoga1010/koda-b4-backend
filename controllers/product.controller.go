@@ -963,15 +963,13 @@ func (pc *ProductController) FilterProducts(ctx *gin.Context) {
 	offset := (page - 1) * limit
 
 	query := `
-    SELECT 
-        p.id, p.title, p.description, p.base_price, p.stock, p.category_id,
-        p.created_at, p.updated_at,
-        (SELECT image FROM product_images WHERE product_id = p.id LIMIT 1) AS image
-    FROM products p
-    WHERE 1=1
-    ORDER BY p.id ASC
-    LIMIT $1 OFFSET $2
-`
+        SELECT 
+            p.id, p.title, p.description, p.base_price, p.stock, p.category_id,
+            p.created_at, p.updated_at,
+            (SELECT image FROM product_images WHERE product_id = p.id LIMIT 1) AS image
+        FROM products p
+        WHERE 1=1`
+
 	var args []interface{}
 	a := 1
 
