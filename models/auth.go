@@ -22,8 +22,8 @@ type UserResponse struct {
     Email     string    `json:"email"`
     Role      string    `json:"role"`
     Token     string    `json:"token,omitempty"`
-    CreatedAt time.Time `json:"created_at"`
-    UpdatedAt time.Time `json:"updated_at"`
+    CreatedAt time.Time `json:"createdAt"`
+    UpdatedAt time.Time `json:"updatedAt"`
 }
 
 type UserLogin struct {
@@ -48,10 +48,10 @@ type ResetPasswordRequest struct {
 
 type ForgotPassword struct {
 	ID        int       `json:"id"`
-	UserID    int64     `json:"user_id"`
+	UserID    int64     `json:"userId"`
 	Token     string    `json:"token"`
-	ExpiresAt time.Time `json:"expires_at"`
-	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expiresAt"`
+	CreatedAt time.Time `json:"createdAt"`
 }
 
 

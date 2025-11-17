@@ -18,17 +18,17 @@ type TransactionItem struct {
 
 type Transaction struct {
 	ID            int64             `json:"id"`
-	NoOrders      string            `json:"no_orders"`
-	CreatedAt     time.Time         `json:"created_at"`
-	StatusName    string            `json:"status_name"`
+	NoOrders      string            `json:"noOrders"`
+	CreatedAt     time.Time         `json:"createdAt"`
+	StatusName    string            `json:"statusName"`
 	Total         float64           `json:"total"`
-	UserFullname  string            `json:"user_fullname"`
-	UserAddress   string            `json:"user_address"`
-	UserPhone     string            `json:"user_phone"`
-	PaymentMethod string            `json:"payment_method"`
-	ShippingName  string            `json:"shipping_name"`
+	UserFullname  string            `json:"userFullname"`
+	UserAddress   string            `json:"userAddress"`
+	UserPhone     string            `json:"userPhone"`
+	PaymentMethod string            `json:"paymentMethod"`
+	ShippingName  string            `json:"shippingName"`
 	VariantName   *string           `json:"variant,omitempty"`
-	OrderItems    []TransactionItem `json:"order_items"`
+	OrderItems    []TransactionItem `json:"orderItems"`
 }
 
 func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, offset int) ([]Transaction, error) {
@@ -194,11 +194,11 @@ func GetTransactionByID(db *pgxpool.Pool, id string) (Transaction, error) {
 
 type HistoryTransaction struct {
 	ID            int64     `json:"id"`
-	InvoiceNumber string    `json:"invoice_number"`
+	InvoiceNumber string    `json:"invoiceNumber"`
 	Image         string    `json:"image"`
 	Total         float64   `json:"total"`
 	Status        string    `json:"status"`
-	CreatedAt     time.Time `json:"created_at"`
+	CreatedAt     time.Time `json:"createdAt"`
 }
 
 func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month, page, limit int) ([]HistoryTransaction, error) {
@@ -258,15 +258,15 @@ func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month
 type HistoryDetail struct {
 	ID             int64                   `json:"id"`
 	InvoiceNumber  string                  `json:"invoice"`
-	CustName       string                  `json:"cust_name"`
-	CustPhone      string                  `json:"cust_phone"`
-	CustEmail      string                  `json:"cust_email"`
-	CustAddress    string                  `json:"cust_address"`
-	PaymentMethod  string                  `json:"payment_method"`
-	DeliveryMethod string                  `json:"delivery_method"`
+	CustName       string                  `json:"custName"`
+	CustPhone      string                  `json:"custPhone"`
+	CustEmail      string                  `json:"custEmail"`
+	CustAddress    string                  `json:"custAddress"`
+	PaymentMethod  string                  `json:"paymentMethod"`
+	DeliveryMethod string                  `json:"deliveryMethod"`
 	Status         string                  `json:"status"`
 	Total          float64                 `json:"total"`
-	CreatedAt      string                  `json:"created_at"`
+	CreatedAt      string                  `json:"createdAt"`
 	Items          []TransactionItemDetail `json:"items"`
 }
 
@@ -275,8 +275,8 @@ type TransactionItemDetail struct {
 	Name          string  `json:"name"`
 	Image         string  `json:"image"`
 	Size          *string `json:"size,omitempty"`
-	BasePrice     float64 `json:"base_price"`
-	DiscountPrice float64 `json:"discount_price"`
+	BasePrice     float64 `json:"basePrice"`
+	DiscountPrice float64 `json:"discountPrice"`
 	Variant       *string `json:"variant,omitempty"`
 	Quantity      int     `json:"quantity"`
 	Subtotal      float64 `json:"subtotal"`
