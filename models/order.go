@@ -201,9 +201,27 @@ type HistoryTransaction struct {
 	CreatedAt     time.Time `json:"createdAt"`
 }
 
-func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month, page, limit int) ([]HistoryTransaction, error) {
+func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month, page, limit int) ([]HistoryTransaction, int, error) {
 	ctx := context.Background()
 	offset := (page - 1) * limit
+
+	totalQuery := "SELECT COUNT(DISTINCT t.id) FROM transactions t WHERE t.user_id=$1"
+	params := []interface{}{userID}
+
+	if status != "" {
+		totalQuery += " AND t.status ILIKE $" + strconv.Itoa(len(params)+1)
+		params = append(params, status)
+	}
+
+	if month >= 1 && month <= 12 {
+		totalQuery += " AND EXTRACT(MONTH FROM t.created_at) = $" + strconv.Itoa(len(params)+1)
+		params = append(params, month)
+	}
+
+	var total int
+	if err := db.QueryRow(ctx, totalQuery, params...).Scan(&total); err != nil {
+		return nil, 0, err
+	}
 
 	query := `
 	SELECT 
@@ -219,27 +237,26 @@ func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month
 	LEFT JOIN product_images pi ON pi.product_id = p.id
 	WHERE t.user_id = $1
 	`
-	params := []interface{}{userID}
+	params = []interface{}{userID}
 
 	if status != "" {
 		query += " AND t.status ILIKE $" + strconv.Itoa(len(params)+1)
 		params = append(params, status)
 	}
-
 	if month >= 1 && month <= 12 {
 		query += " AND EXTRACT(MONTH FROM t.created_at) = $" + strconv.Itoa(len(params)+1)
 		params = append(params, month)
 	}
 
 	query += `
-		GROUP BY t.id
-		ORDER BY t.created_at DESC
-		LIMIT $` + strconv.Itoa(len(params)+1) + " OFFSET $" + strconv.Itoa(len(params)+2)
+	GROUP BY t.id
+	ORDER BY t.created_at DESC
+	LIMIT $` + strconv.Itoa(len(params)+1) + " OFFSET $" + strconv.Itoa(len(params)+2)
 	params = append(params, limit, offset)
 
 	rows, err := db.Query(ctx, query, params...)
 	if err != nil {
-		return nil, err
+		return nil, 0, err
 	}
 	defer rows.Close()
 
@@ -247,13 +264,15 @@ func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month
 	for rows.Next() {
 		var h HistoryTransaction
 		if err := rows.Scan(&h.ID, &h.InvoiceNumber, &h.Total, &h.Status, &h.CreatedAt, &h.Image); err != nil {
-			return nil, err
+			continue
 		}
 		histories = append(histories, h)
 	}
 
-	return histories, nil
+	return histories, total, nil
 }
+
+
 
 type HistoryDetail struct {
 	ID             int64                   `json:"id"`

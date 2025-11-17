@@ -272,19 +272,16 @@ func (tc *TransactionController) GetHistoryTransactions(ctx *gin.Context) {
 	monthStr := ctx.DefaultQuery("month", "0")
 	status := ctx.DefaultQuery("status", "")
 	pageStr := ctx.DefaultQuery("page", "1")
-	limitStr := ctx.DefaultQuery("limit", "10")
 
 	month, _ := strconv.Atoi(monthStr)
 	page, err := strconv.Atoi(pageStr)
 	if err != nil || page < 1 {
 		page = 1
 	}
-	limit, err := strconv.Atoi(limitStr)
-	if err != nil || limit < 1 {
-		limit = 10
-	}
 
-	histories, err := models.GetHistoryTransactions(tc.DB, userID, status, month, page, limit)
+	limit := 5 
+
+	histories, total, err := models.GetHistoryTransactions(tc.DB, userID, status, month, page, limit)
 	if err != nil {
 		ctx.JSON(http.StatusInternalServerError, models.Response{
 			Success: false,
@@ -294,11 +291,17 @@ func (tc *TransactionController) GetHistoryTransactions(ctx *gin.Context) {
 		return
 	}
 
-	ctx.JSON(http.StatusOK, models.Response{
-		Success: true,
-		Message: "History transactions fetched successfully",
-		Data:    histories,
-	})
+	pagination, links := libs.BuildHateoasGlobal("/transactions/history", page, limit, total, ctx.Request.URL.Query())
+
+	response := models.ProductListResponse{
+		Success:    true,
+		Message:    "History transactions fetched successfully",
+		Pagination: pagination,
+		Links:      links,
+		Data:       histories,
+	}
+
+	ctx.JSON(http.StatusOK, response)
 }
 
 // GetHistoryDetailById godoc
