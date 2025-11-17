@@ -134,8 +134,7 @@ func UpdateUser(db *pgxpool.Pool, userID int64, fullname, email, password, phone
 			return nil, nil, errors.New("file type must be jpg, jpeg, or png")
 		}
 
-		useCloudinary := os.Getenv("CLOUDINARY_API_KEY") != ""
-		if useCloudinary {
+		if os.Getenv("CLOUDINARY_API_KEY") != "" {
 			url, err := libs.UploadFile(fileHeader, "profile_images")
 			if err != nil {
 				return nil, nil, err
@@ -192,8 +191,7 @@ func UpdateUser(db *pgxpool.Pool, userID int64, fullname, email, password, phone
 	if len(fields) > 0 {
 		query := fmt.Sprintf("UPDATE users SET %s, updated_at=NOW() WHERE id=$%d", strings.Join(fields, ","), argIdx)
 		args = append(args, userID)
-		_, err := db.Exec(ctx, query, args...)
-		if err != nil {
+		if _, err := db.Exec(ctx, query, args...); err != nil {
 			return nil, nil, err
 		}
 	}
@@ -221,8 +219,7 @@ func UpdateUser(db *pgxpool.Pool, userID int64, fullname, email, password, phone
 	if len(profileFields) > 0 {
 		query := fmt.Sprintf("UPDATE profile SET %s, updated_at=NOW() WHERE user_id=$%d", strings.Join(profileFields, ","), pIdx)
 		profileArgs = append(profileArgs, userID)
-		_, err := db.Exec(ctx, query, profileArgs...)
-		if err != nil {
+		if _, err := db.Exec(ctx, query, profileArgs...); err != nil {
 			return nil, nil, err
 		}
 	}
