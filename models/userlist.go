@@ -122,8 +122,8 @@ func AddUser(db *pgxpool.Pool, fullname, email, password, role string, phone, ad
 
 func UpdateUser(db *pgxpool.Pool, userID int64, fullname, email, password, phone, address string, fileHeader *multipart.FileHeader) (*UserList, *Profile, error) {
 	ctx := context.Background()
-
 	var imagePath *string
+
 	if fileHeader != nil {
 		if fileHeader.Size > 2*1024*1024 {
 			return nil, nil, errors.New("file size exceeds 2MB")
@@ -134,28 +134,35 @@ func UpdateUser(db *pgxpool.Pool, userID int64, fullname, email, password, phone
 			return nil, nil, errors.New("file type must be jpg, jpeg, or png")
 		}
 
-		filename := fmt.Sprintf("uploads/%d_%d%s", userID, time.Now().UnixNano(), ext)
-		if err := os.MkdirAll("uploads", os.ModePerm); err != nil {
-			return nil, nil, err
-		}
+		useCloudinary := os.Getenv("CLOUDINARY_API_KEY") != ""
+		if useCloudinary {
+			url, err := libs.UploadFile(fileHeader, "profile_images")
+			if err != nil {
+				return nil, nil, err
+			}
+			imagePath = &url
+		} else {
+			filename := fmt.Sprintf("uploads/%d_%d%s", userID, time.Now().UnixNano(), ext)
+			if err := os.MkdirAll("uploads", os.ModePerm); err != nil {
+				return nil, nil, err
+			}
+			src, err := fileHeader.Open()
+			if err != nil {
+				return nil, nil, err
+			}
+			defer src.Close()
 
-		src, err := fileHeader.Open()
-		if err != nil {
-			return nil, nil, err
-		}
-		defer src.Close()
+			dst, err := os.Create(filename)
+			if err != nil {
+				return nil, nil, err
+			}
+			defer dst.Close()
 
-		dst, err := os.Create(filename)
-		if err != nil {
-			return nil, nil, err
+			if _, err := io.Copy(dst, src); err != nil {
+				return nil, nil, err
+			}
+			imagePath = &filename
 		}
-		defer dst.Close()
-
-		if _, err := io.Copy(dst, src); err != nil {
-			return nil, nil, err
-		}
-
-		imagePath = &filename
 	}
 
 	args := []interface{}{}
