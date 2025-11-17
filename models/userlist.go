@@ -123,44 +123,35 @@ func UpdateUser(db *pgxpool.Pool, userID int64, fullname, email, password, phone
 	var imagePath *string
 
 	if fileHeader != nil {
-		if fileHeader.Size > 2*1024*1024 {
-			return nil, nil, errors.New("file size exceeds 2MB")
-		}
+    if fileHeader.Size > 2*1024*1024 {
+        return nil, nil, errors.New("file size exceeds 2MB")
+    }
 
-		ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
-		if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
-			return nil, nil, errors.New("file type must be jpg, jpeg, or png")
-		}
+    ext := strings.ToLower(filepath.Ext(fileHeader.Filename))
+    if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
+        return nil, nil, errors.New("file type must be jpg, jpeg, or png")
+    }
 
-		if os.Getenv("CLOUDINARY_API_KEY") != "" {
-			url, err := libs.UploadFile(fileHeader, "profile_images")
-			if err != nil {
-				return nil, nil, err
-			}
-			imagePath = &url
-		} else {
-			filename := fmt.Sprintf("uploads/%d_%d%s", userID, time.Now().UnixNano(), ext)
-			if err := os.MkdirAll("uploads", os.ModePerm); err != nil {
-				return nil, nil, err
-			}
-			src, err := fileHeader.Open()
-			if err != nil {
-				return nil, nil, err
-			}
-			defer src.Close()
+    if os.Getenv("CLOUDINARY_API_KEY") != "" {
+        url, err := libs.UploadFile(fileHeader, "profile_images")
+        if err != nil {
+            return nil, nil, err
+        }
+        imagePath = &url
+    } else {
+        filename := fmt.Sprintf("uploads/%d_%d%s", userID, time.Now().UnixNano(), ext)
+        if err := os.MkdirAll("uploads", os.ModePerm); err != nil {
+            return nil, nil, err
+        }
+        src, _ := fileHeader.Open()
+        defer src.Close()
+        dst, _ := os.Create(filename)
+        defer dst.Close()
+        io.Copy(dst, src)
+        imagePath = &filename
+    }
+}
 
-			dst, err := os.Create(filename)
-			if err != nil {
-				return nil, nil, err
-			}
-			defer dst.Close()
-
-			if _, err := io.Copy(dst, src); err != nil {
-				return nil, nil, err
-			}
-			imagePath = &filename
-		}
-	}
 
 	args := []interface{}{}
 	fields := []string{}
