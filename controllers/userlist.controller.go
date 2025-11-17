@@ -1,6 +1,7 @@
 package controllers
 
 import (
+	"coffeeder-backend/libs"
 	"coffeeder-backend/models"
 	"context"
 	"fmt"
@@ -9,7 +10,6 @@ import (
 	"path/filepath"
 	"strconv"
 	"strings"
-
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
@@ -84,6 +84,22 @@ func (uc *UserController) GetUsersList(ctx *gin.Context) {
 		args = append(args, "%"+search+"%")
 		argIndex++
 	}
+	
+	countQuery := "SELECT COUNT(*) FROM users u LEFT JOIN profile p ON p.user_id = u.id WHERE 1=1"
+	if search != "" {
+		countQuery += fmt.Sprintf(
+			" AND (LOWER(u.fullname) LIKE LOWER($1) OR LOWER(u.email) LIKE LOWER($1))",
+		)
+	}
+	var total int
+	if err := uc.DB.QueryRow(context.Background(), countQuery, args...).Scan(&total); err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to count users",
+			Data:    err.Error(),
+		})
+		return
+	}
 
 	orderClause := fmt.Sprintf(" ORDER BY u.%s %s", sortBy, sortOrder)
 	limitClause := fmt.Sprintf(" LIMIT $%d OFFSET $%d", argIndex, argIndex+1)
@@ -128,22 +144,23 @@ func (uc *UserController) GetUsersList(ctx *gin.Context) {
 			p.Address = address
 		}
 
-		u.Profile = p 
+		u.Profile = p
 		users = append(users, u)
 	}
 
-	ctx.JSON(200, models.Response{
-		Success: true,
-		Message: "Users fetched successfully",
-		Data: map[string]interface{}{
-			"page":       page,
-			"limit":      limit,
-			"sort_by":    sortBy,
-			"sort_order": sortOrder,
-			"users":      users,
-		},
-	})
+	pagination, links := libs.BuildHateoasGlobal("/users", page, limit, total, ctx.Request.URL.Query())
+
+	response := models.ProductListResponse{
+		Success:    true,
+		Message:    "Users fetched successfully",
+		Pagination: pagination,
+		Links:      links,
+		Data:       users,
+	}
+
+	ctx.JSON(200, response)
 }
+
 
 
 

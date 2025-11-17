@@ -29,11 +29,11 @@ type ProfileUser struct {
 	Image     *string    `json:"image,omitempty" db:"image"`
 	Phone     *string    `json:"phone,omitempty" db:"phone"`
 	Address   *string    `json:"address,omitempty" db:"address"`
-	UserID    int64      `json:"user_id" db:"user_id"`
+	UserID    int64      `json:"userId" db:"user_id"`
 	Fullname  *string    `json:"fullname,omitempty" db:"fullname"`
 	Email     *string    `json:"email,omitempty" db:"email"`
-	CreatedAt time.Time  `json:"created_at" db:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at" db:"updated_at"`
+	CreatedAt time.Time  `json:"createdAt" db:"created_at"`
+	UpdatedAt time.Time  `json:"updatedAt" db:"updated_at"`
 }
 
 type ProfileResponse struct {
@@ -43,9 +43,9 @@ type ProfileResponse struct {
 	Image     *string    `json:"image,omitempty"`
 	Phone     *string    `json:"phone,omitempty"`
 	Address   *string    `json:"address,omitempty"`
-	UserID    int64      `json:"user_id"`
-	CreatedAt time.Time  `json:"created_at"`
-	UpdatedAt time.Time  `json:"updated_at"`
+	UserID    int64      `json:"userId"`
+	CreatedAt time.Time  `json:"createdAt"`
+	UpdatedAt time.Time  `json:"updatedAt"`
 }
 
 
