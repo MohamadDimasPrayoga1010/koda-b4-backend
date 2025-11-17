@@ -876,233 +876,227 @@ func (pc *ProductController) GetFavoriteProducts(ctx *gin.Context) {
 // @Failure      500  {object} map[string]interface{} "Terjadi kesalahan server"
 // @Router       /products [get]
 func (pc *ProductController) FilterProducts(ctx *gin.Context) {
-	var filter models.ProductFilter
+    var filter models.ProductFilter
 
-	cats := ctx.QueryArray("cat")
-	fav := ctx.Query("favorite")
-	pmin := ctx.Query("price_min")
-	pmax := ctx.Query("price_max")
-	searchQuery := ctx.Query("q")
+    cats := ctx.QueryArray("cat")
+    fav := ctx.Query("favorite")
+    pmin := ctx.Query("price_min")
+    pmax := ctx.Query("price_max")
+    searchQuery := ctx.Query("q")
 
-	sortBy := ctx.DefaultQuery("sortby", "name")
-	order := ctx.DefaultQuery("order", "asc")
+    sortBy := ctx.DefaultQuery("sortby", "name")
+    order := strings.ToUpper(ctx.DefaultQuery("order", "ASC"))
+    if order != "ASC" && order != "DESC" {
+        order = "ASC"
+    }
 
-	pageStr := ctx.DefaultQuery("page", "1")
-	limitStr := ctx.DefaultQuery("limit", "10")
+    pageStr := ctx.DefaultQuery("page", "1")
+    limitStr := ctx.DefaultQuery("limit", "10")
 
-	page, _ := strconv.Atoi(pageStr)
-	limit, _ := strconv.Atoi(limitStr)
-	if page < 1 {
-		page = 1
-	}
-	if limit < 1 {
-		limit = 10
-	}
+    page, _ := strconv.Atoi(pageStr)
+    limit, _ := strconv.Atoi(limitStr)
+    if page < 1 { page = 1 }
+    if limit < 1 { limit = 10 }
 
-	for _, c := range cats {
-		if id, err := strconv.ParseInt(c, 10, 64); err == nil {
-			filter.Categories = append(filter.Categories, id)
-		}
-	}
+    // Parse categories
+    for _, c := range cats {
+        if id, err := strconv.ParseInt(c, 10, 64); err == nil {
+            filter.Categories = append(filter.Categories, id)
+        }
+    }
 
-	if fav != "" {
-		v := fav == "true"
-		filter.IsFavorite = &v
-	}
+    if fav != "" {
+        v := fav == "true"
+        filter.IsFavorite = &v
+    }
 
-	if pmin != "" {
-		if f, err := strconv.ParseFloat(pmin, 64); err == nil {
-			filter.PriceMin = &f
-		}
-	}
+    if pmin != "" {
+        if f, err := strconv.ParseFloat(pmin, 64); err == nil {
+            filter.PriceMin = &f
+        }
+    }
 
-	if pmax != "" {
-		if f, err := strconv.ParseFloat(pmax, 64); err == nil {
-			filter.PriceMax = &f
-		}
-	}
+    if pmax != "" {
+        if f, err := strconv.ParseFloat(pmax, 64); err == nil {
+            filter.PriceMax = &f
+        }
+    }
 
-	filter.SortBy = sortBy
+    filter.SortBy = sortBy
 
-	countQuery := `SELECT COUNT(*) FROM products p WHERE 1=1`
-	var countArgs []interface{}
-	countIdx := 1
+    countQuery := `SELECT COUNT(*) FROM products p WHERE 1=1`
+    var countArgs []interface{}
+    idx := 1
 
-	if len(filter.Categories) > 0 {
-		countQuery += fmt.Sprintf(" AND p.category_id = ANY($%d)", countIdx)
-		countArgs = append(countArgs, filter.Categories)
-		countIdx++
-	}
+    if len(filter.Categories) > 0 {
+        countQuery += fmt.Sprintf(" AND p.category_id = ANY($%d)", idx)
+        countArgs = append(countArgs, filter.Categories)
+        idx++
+    }
+    if filter.IsFavorite != nil {
+        countQuery += fmt.Sprintf(" AND p.is_favorite = $%d", idx)
+        countArgs = append(countArgs, *filter.IsFavorite)
+        idx++
+    }
+    if filter.PriceMin != nil {
+        countQuery += fmt.Sprintf(" AND p.base_price >= $%d", idx)
+        countArgs = append(countArgs, *filter.PriceMin)
+        idx++
+    }
+    if filter.PriceMax != nil {
+        countQuery += fmt.Sprintf(" AND p.base_price <= $%d", idx)
+        countArgs = append(countArgs, *filter.PriceMax)
+        idx++
+    }
+    if searchQuery != "" {
+        countQuery += fmt.Sprintf(" AND LOWER(p.title) LIKE LOWER($%d)", idx)
+        countArgs = append(countArgs, "%"+searchQuery+"%")
+        idx++
+    }
 
-	if filter.IsFavorite != nil {
-		countQuery += fmt.Sprintf(" AND p.is_favorite = $%d", countIdx)
-		countArgs = append(countArgs, *filter.IsFavorite)
-		countIdx++
-	}
+    var totalItems int
+    _ = pc.DB.QueryRow(context.Background(), countQuery, countArgs...).Scan(&totalItems)
 
-	if filter.PriceMin != nil {
-		countQuery += fmt.Sprintf(" AND p.base_price >= $%d", countIdx)
-		countArgs = append(countArgs, *filter.PriceMin)
-		countIdx++
-	}
+    offset := (page - 1) * limit
 
-	if filter.PriceMax != nil {
-		countQuery += fmt.Sprintf(" AND p.base_price <= $%d", countIdx)
-		countArgs = append(countArgs, *filter.PriceMax)
-		countIdx++
-	}
+    query := `
+        SELECT 
+            p.id, p.title, p.description, p.base_price, p.stock, p.category_id,
+            p.created_at, p.updated_at,
+            (SELECT image FROM product_images WHERE product_id = p.id LIMIT 1) AS image
+        FROM products p
+        WHERE 1=1`
 
-	if searchQuery != "" {
-		countQuery += fmt.Sprintf(" AND LOWER(p.title) LIKE LOWER($%d)", countIdx)
-		countArgs = append(countArgs, "%"+searchQuery+"%")
-		countIdx++
-	}
+    var args []interface{}
+    a := 1
 
-	var totalItems int
-	_ = pc.DB.QueryRow(context.Background(), countQuery, countArgs...).Scan(&totalItems)
+    if len(filter.Categories) > 0 {
+        query += fmt.Sprintf(" AND p.category_id = ANY($%d)", a)
+        args = append(args, filter.Categories)
+        a++
+    }
+    if filter.IsFavorite != nil {
+        query += fmt.Sprintf(" AND p.is_favorite = $%d", a)
+        args = append(args, *filter.IsFavorite)
+        a++
+    }
+    if filter.PriceMin != nil {
+        query += fmt.Sprintf(" AND p.base_price >= $%d", a)
+        args = append(args, *filter.PriceMin)
+        a++
+    }
+    if filter.PriceMax != nil {
+        query += fmt.Sprintf(" AND p.base_price <= $%d", a)
+        args = append(args, *filter.PriceMax)
+        a++
+    }
+    if searchQuery != "" {
+        query += fmt.Sprintf(" AND LOWER(p.title) LIKE LOWER($%d)", a)
+        args = append(args, "%"+searchQuery+"%")
+        a++
+    }
 
-	offset := (page - 1) * limit
+    switch filter.SortBy {
+    case "baseprice":
+        query += fmt.Sprintf(" ORDER BY p.base_price %s", order)
+    case "name":
+        query += fmt.Sprintf(" ORDER BY p.title %s", order)
+    default:
+        query += fmt.Sprintf(" ORDER BY p.id %s", order)
+    }
 
-	query := `
-		SELECT 
-			p.id, p.title, p.description, p.base_price, p.stock, p.category_id,
-			p.created_at, p.updated_at,
-			(SELECT image FROM product_images WHERE product_id = p.id LIMIT 1) AS image,
-			COALESCE(json_agg(DISTINCT s.name) FILTER (WHERE s.name IS NOT NULL), '[]') AS sizes
-		FROM products p
-		LEFT JOIN product_sizes ps ON ps.product_id = p.id
-		LEFT JOIN sizes s ON s.id = ps.size_id
-		WHERE 1=1
-	`
+    query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
 
-	var args []interface{}
-	argIndex := 1
+    rows, err := pc.DB.Query(context.Background(), query, args...)
+    if err != nil {
+        ctx.JSON(http.StatusInternalServerError, gin.H{
+            "success": false,
+            "message": "Gagal menjalankan query filter produk",
+            "error":   err.Error(),
+        })
+        return
+    }
+    defer rows.Close()
 
-	if len(filter.Categories) > 0 {
-		query += fmt.Sprintf(" AND p.category_id = ANY($%d)", argIndex)
-		args = append(args, filter.Categories)
-		argIndex++
-	}
+    var products []models.ProductResponseFilter
 
-	if filter.IsFavorite != nil {
-		query += fmt.Sprintf(" AND p.is_favorite = $%d", argIndex)
-		args = append(args, *filter.IsFavorite)
-		argIndex++
-	}
+    for rows.Next() {
+        var id, categoryID int64
+        var title, desc, image string
+        var price float64
+        var stock int
+        var createdAt, updatedAt time.Time
 
-	if filter.PriceMin != nil {
-		query += fmt.Sprintf(" AND p.base_price >= $%d", argIndex)
-		args = append(args, *filter.PriceMin)
-		argIndex++
-	}
+        rows.Scan(&id, &title, &desc, &price, &stock, &categoryID, &createdAt, &updatedAt, &image)
 
-	if filter.PriceMax != nil {
-		query += fmt.Sprintf(" AND p.base_price <= $%d", argIndex)
-		args = append(args, *filter.PriceMax)
-		argIndex++
-	}
+        sizes := []models.SizeObj{}
 
-	if searchQuery != "" {
-		query += fmt.Sprintf(" AND LOWER(p.title) LIKE LOWER($%d)", argIndex)
-		args = append(args, "%"+searchQuery+"%")
-		argIndex++
-	}
+        sizeRows, _ := pc.DB.Query(context.Background(),
+            `SELECT s.id, s.name
+             FROM sizes s
+             JOIN product_sizes ps ON ps.size_id = s.id
+             WHERE ps.product_id=$1`, id)
 
-	query += " GROUP BY p.id "
+        for sizeRows.Next() {
+            var sid int64
+            var sname string
+            sizeRows.Scan(&sid, &sname)
+            sizes = append(sizes, models.SizeObj{ID: sid, Name: sname})
+        }
+        sizeRows.Close()
+		
+        variants := []map[string]interface{}{}
+        variantRows, _ := pc.DB.Query(context.Background(),
+            `SELECT v.id, v.name, v.additional_price
+             FROM variants v
+             JOIN product_variants pv ON pv.variant_id = v.id
+             WHERE pv.product_id=$1`, id)
 
-	order = strings.ToUpper(order)
-	if order != "ASC" && order != "DESC" {
-		order = "ASC"
-	}
+        for variantRows.Next() {
+            var vid int64
+            var vname string
+            var addPrice float64
 
-	switch filter.SortBy {
-	case "baseprice":
-		query += fmt.Sprintf(" ORDER BY p.base_price %s", order)
-	case "name":
-		query += fmt.Sprintf(" ORDER BY p.title %s", order)
-	default:
-		query += fmt.Sprintf(" ORDER BY p.id %s", order)
-	}
+            variantRows.Scan(&vid, &vname, &addPrice)
 
-	query += fmt.Sprintf(" LIMIT %d OFFSET %d", limit, offset)
+            variants = append(variants, map[string]interface{}{
+                "id":               vid,
+                "name":             vname,
+                "additional_price": addPrice,
+            })
+        }
+        variantRows.Close()
 
-	rows, err := pc.DB.Query(context.Background(), query, args...)
-	if err != nil {
-		ctx.JSON(http.StatusInternalServerError, gin.H{
-			"success": false,
-			"message": "Gagal menjalankan query filter produk",
-			"error":   err.Error(),
-		})
-		return
-	}
-	defer rows.Close()
+        products = append(products, models.ProductResponseFilter{
+            ID:          id,
+            Title:       title,
+            Description: desc,
+            BasePrice:   price,
+            Stock:       stock,
+            CategoryID:  categoryID,
+            Image:       image,
+            Sizes:       sizes,
+            Variants:    variants,
+            CreatedAt:   createdAt,
+            UpdatedAt:   updatedAt,
+        })
+    }
 
-	var products []models.ProductResponseFilter
+    pagination, links := libs.BuildHateoasGlobal(
+        "/products",
+        page,
+        limit,
+        totalItems,
+        ctx.Request.URL.Query(),
+    )
 
-	for rows.Next() {
-		var id, categoryID int64
-		var title, desc, image string
-		var price float64
-		var stock int
-		var createdAt, updatedAt time.Time
-		var sizesRaw []byte
-
-		rows.Scan(&id, &title, &desc, &price, &stock, &categoryID, &createdAt, &updatedAt, &image, &sizesRaw)
-
-		var sizes []string
-		_ = json.Unmarshal(sizesRaw, &sizes)
-
-		variantRows, _ := pc.DB.Query(context.Background(),
-			`SELECT v.id, v.name, v.additional_price
-			 FROM variants v
-			 JOIN product_variants pv ON pv.variant_id = v.id
-			 WHERE pv.product_id=$1`, id)
-
-		var variants []map[string]interface{}
-		for variantRows.Next() {
-			var vid int64
-			var vname string
-			var addPrice float64
-			variantRows.Scan(&vid, &vname, &addPrice)
-
-			variants = append(variants, map[string]interface{}{
-				"id":               vid,
-				"name":             vname,
-				"additional_price": addPrice,
-			})
-		}
-		variantRows.Close()
-
-		products = append(products, models.ProductResponseFilter{
-			ID:          id,
-			Title:       title,
-			Description: desc,
-			BasePrice:   price,
-			Stock:       stock,
-			CategoryID:  categoryID,
-			Image:       image,
-			Sizes:       sizes,
-			Variants:    variants,
-			CreatedAt:   createdAt,
-			UpdatedAt:   updatedAt,
-		})
-	}
-
-	pagination, links := libs.BuildHateoasGlobal(
-		"/products",
-		page,
-		limit,
-		totalItems,
-		ctx.Request.URL.Query(),
-	)
-
-	ctx.JSON(http.StatusOK, gin.H{
-		"success":    true,
-		"message":    "Filtered products fetched successfully",
-		"pagination": pagination,
-		"links":      links,
-		"data":       products,
-	})
+    ctx.JSON(http.StatusOK, gin.H{
+        "success":    true,
+        "message":    "Filtered products fetched successfully",
+        "pagination": pagination,
+        "links":      links,
+        "data":       products,
+    })
 }
 
 

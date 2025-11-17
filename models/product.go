@@ -28,6 +28,11 @@ type Product struct {
 	Sizes       []Size         `json:"sizes,omitempty"`
 }
 
+type SizeObj struct {
+    ID   int64  `json:"id"`
+    Name string `json:"name"`
+}
+
 type ProductResponse struct {
 	ID          int64           `json:"id"`
 	Title       string          `json:"title"`
@@ -39,7 +44,7 @@ type ProductResponse struct {
 	CreatedAt   time.Time       `json:"createdAt"`
 	UpdatedAt   time.Time       `json:"updatedAt"`
 	Images      []ProductImage  `json:"images,omitempty"`
-	Sizes       []Size          `json:"sizes,omitempty"`
+	Sizes       []Size         `json:"sizes,omitempty"`
 }
 
 type ProductResponseFilter struct {
@@ -50,7 +55,7 @@ type ProductResponseFilter struct {
 	Stock       int                      `json:"stock"`
 	CategoryID  int64                    `json:"categoryId"`
 	Image       string                   `json:"image"`
-	Sizes       []string                 `json:"sizes"`
+	Sizes       []SizeObj                `json:"sizes"`
 	Variants    []map[string]interface{} `json:"variants"`
 	CreatedAt   time.Time                `json:"createdAt"`
 	UpdatedAt   time.Time                `json:"updatedAt"`
