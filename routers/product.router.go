@@ -25,7 +25,7 @@ func ProductRoutes(r *gin.Engine, pg *pgxpool.Pool) {
 		admin.DELETE("/products/:id/images/:image_id", pc.DeleteProductImage) 
 	}
 	r.GET("/favorite-products", middlewares.AuthMiddleware(""),pc.GetFavoriteProducts)
-	r.GET("/products",middlewares.AuthMiddleware("") ,pc.FilterProducts)
+	r.GET("/products",pc.FilterProducts)
 	r.GET("/products/:id",middlewares.AuthMiddleware("") ,pc.GetProductDetail)
 	r.POST("/cart",middlewares.AuthMiddleware(""), pc.AddToCart)
 	r.GET("/cart", middlewares.AuthMiddleware(""), pc.GetCart)
