@@ -52,4 +52,5 @@ jobs:
           key: ${{ secrets.KEY }}
           port: 9050
           script: |
-            docker pull ghcr.io/mohamaddimasprayoga1010/coffeeder:latest
+            cd ~/server && docker compose pull && docker compose up backend -d
+            docker system prune -a --volumes
