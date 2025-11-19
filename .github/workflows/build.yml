@@ -43,3 +43,13 @@ jobs:
           tags: |
             ghcr.io/mohamaddimasprayoga1010/coffeeder:latest
             ghcr.io/mohamaddimasprayoga1010/coffeeder:${{ github.ref_name }}
+
+      - name: Deploy via SSH
+        uses: appleboy/ssh-action@v1.0.3
+        with:
+          host: ${{ secrets.SSH_HOST }}
+          username: ${{ secrets.SSH_USER }}
+          key: ${{ secrets.KEY }}
+          port: 9050
+          script: |
+            docker pull ghcr.io/mohamaddimasprayoga1010/coffeeder:latest
