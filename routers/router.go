@@ -15,7 +15,7 @@ func InitRouter(pg *pgxpool.Pool) *gin.Engine {
 	r.GET("/", func(ctx *gin.Context) {
 		ctx.JSON(http.StatusOK, models.Response{
 			Success: true,
-			Message: "Backend is running well",
+			Message: "Backend is running well well well",
 		})
 	})
 
