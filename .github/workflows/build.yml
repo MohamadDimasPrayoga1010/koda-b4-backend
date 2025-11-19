@@ -29,5 +29,8 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.repository_owner }}/coffeeder:latest
-            ghcr.io/${{ github.repository_owner }}/coffeeder:${{ github.ref_name }}
+            ghcr.io/mohamaddimasprayoga1010/coffeeder:latest
+            ghcr.io/mohamaddimasprayoga1010/coffeeder:${{ github.ref_name }}
+
+      - name: Image info
+        run: docker images | grep coffeeder
