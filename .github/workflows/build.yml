@@ -41,5 +41,5 @@ jobs:
           context: .
           push: true
           tags: |
-            ghcr.io/${{ github.actor }}/coffeeder:latest
-            ghcr.io/${{ github.actor }}/coffeeder:${{ github.ref_name }}
+            ghcr.io/mohamaddimasprayoga1010/coffeeder:latest
+            ghcr.io/mohamaddimasprayoga1010/coffeeder:${{ github.ref_name }}
