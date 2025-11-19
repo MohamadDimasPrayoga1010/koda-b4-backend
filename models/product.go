@@ -43,6 +43,7 @@ type ProductResponse struct {
 	UpdatedAt   time.Time       `json:"updatedAt"`
 	Images      []ProductImage  `json:"images,omitempty"`
 	Sizes       []Size          `json:"sizes,omitempty"`
+	IsFlashSale bool            `json:"isFlashSale"`
 }
 
 type ProductResponseFilter struct {
@@ -246,11 +247,17 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 	}
 
 	query := `
-		SELECT p.id, p.title, p.description, p.base_price, p.stock, 
-		       p.category_id, c.name AS category_name, p.created_at, p.updated_at
-		FROM products p
-		LEFT JOIN categories c ON c.id = p.category_id
-	`
+	SELECT p.id, p.title, p.description, p.base_price, p.stock,
+	       p.category_id, c.name AS category_name,
+	       CASE WHEN pr.id IS NOT NULL THEN true ELSE false END AS is_flashsale,
+	       p.created_at, p.updated_at
+	FROM products p
+	LEFT JOIN categories c ON c.id = p.category_id
+	LEFT JOIN product_promos pp ON pp.product_id = p.id
+	LEFT JOIN promos pr ON pr.id = pp.promo_id 
+		AND pr.start <= NOW() AND pr."end" >= NOW()
+`
+
 	if search != "" {
 		query += fmt.Sprintf(" WHERE LOWER(p.title) LIKE LOWER($1) OR LOWER(p.description) LIKE LOWER($2)")
 	}
@@ -323,7 +330,6 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 
 	return products, total, nil
 }
-
 
 func GetProductByID(db *pgxpool.Pool, productID int64) (ProductResponse, error) {
 	ctx := context.Background()
@@ -398,7 +404,6 @@ func GetProductByID(db *pgxpool.Pool, productID int64) (ProductResponse, error) 
 
 	return p, nil
 }
-
 
 func UpdateProduct(db *pgxpool.Pool, productID int64, req ProductRequest, imageFiles []string, old ProductResponse) (ProductResponse, error) {
 	ctx := context.Background()
@@ -497,7 +502,6 @@ func UpdateProduct(db *pgxpool.Pool, productID int64, req ProductRequest, imageF
 
 	return product, nil
 }
-
 
 type ProductDetail struct {
 	ID          int64                    `json:"id"`
