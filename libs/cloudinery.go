@@ -39,8 +39,10 @@ func UploadFile(file interface{}, folder string) (string, error) {
     }
 
     ctx := context.Background()
+
     res, err := cld.Upload.Upload(ctx, file, uploader.UploadParams{
         Folder: folder,
+        ResourceType: "image",
     })
     if err != nil {
         return "", err

@@ -48,7 +48,6 @@ type ProfileResponse struct {
 	UpdatedAt time.Time  `json:"updatedAt"`
 }
 
-// test
 
 
 func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address, fullname, email string, fileHeader *multipart.FileHeader) (ProfileResponse, error) {
@@ -70,11 +69,20 @@ func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address, fullname, ema
 		apiSecret := os.Getenv("CLOUDINARY_API_SECRET")
 
 		if cloudName != "" && apiKey != "" && apiSecret != "" {
-			url, err := libs.UploadFile(fileHeader, "profile_images") 
+
+			file, err := fileHeader.Open()
 			if err != nil {
 				return ProfileResponse{}, err
 			}
-			imagePath = &url 
+			defer file.Close()
+
+			url, err := libs.UploadFile(file, "profile_images")
+			if err != nil {
+				return ProfileResponse{}, err
+			}
+
+			imagePath = &url
+
 		} else {
 			uploadDir := "./uploads/profile"
 			if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
