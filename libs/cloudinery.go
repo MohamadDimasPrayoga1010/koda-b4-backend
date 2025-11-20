@@ -2,6 +2,7 @@ package libs
 
 import (
     "context"
+    "errors"
     "github.com/cloudinary/cloudinary-go/v2"
     "github.com/cloudinary/cloudinary-go/v2/api/uploader"
     "os"
@@ -14,12 +15,20 @@ func InitCloudinary() (*cloudinary.Cloudinary, error) {
         return cld, nil
     }
 
-    cldURL := os.Getenv("CLOUDINARY_API_KEY") 
+    cloudName := os.Getenv("CLOUDINARY_CLOUD_NAME")
+    apiKey := os.Getenv("CLOUDINARY_API_KEY")
+    apiSecret := os.Getenv("CLOUDINARY_API_SECRET")
+
+    if cloudName == "" || apiKey == "" || apiSecret == "" {
+        return nil, errors.New("Cloudinary credentials not set")
+    }
+
     var err error
-    cld, err = cloudinary.NewFromURL(cldURL)
+    cld, err = cloudinary.NewFromParams(cloudName, apiKey, apiSecret)
     if err != nil {
         return nil, err
     }
+
     return cld, nil
 }
 
