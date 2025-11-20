@@ -4,6 +4,7 @@ import (
 	"coffeeder-backend/libs"
 	"coffeeder-backend/models"
 	"context"
+	"fmt"
 	"strings"
 	"time"
 
@@ -156,40 +157,54 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 	var req models.ForgotPasswordRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
-		ctx.JSON(400, models.Response{Success: false, Message: "Invalid request body"})
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid request body",
+		})
 		return
 	}
 
+	fmt.Println("ForgotPassword request for email:", req.Email)
 	var userID int64
 	err := ac.DB.QueryRow(context.Background(), "SELECT id FROM users WHERE email=$1", req.Email).Scan(&userID)
 	if err != nil {
+		fmt.Println("User not found:", err)
 		ctx.JSON(404, models.Response{
 			Success: false,
-			Message: "Email not found"})
+			Message: "Email not found",
+		})
 		return
 	}
 
 	otp := libs.GenerateOTP(6)
+	fmt.Println("Generated OTP:", otp)
 	err = models.CreateForgotPassword(ac.DB, userID, otp, 2*time.Minute)
 	if err != nil {
+		fmt.Println("Error creating ForgotPassword record:", err)
 		ctx.JSON(500, models.Response{
 			Success: false,
-			Message: "Failed to generate OTP"})
+			Message: "Failed to generate OTP",
+		})
 		return
 	}
+
 	err = libs.SendOTPEmail(req.Email, otp)
 	if err != nil {
+		fmt.Println("Error sending OTP email:", err)
 		ctx.JSON(500, models.Response{
 			Success: false,
-			Message: "Failed to send OTP email"})
+			Message: "Failed to send OTP email, please try again later",
+		})
 		return
 	}
 
-
+	fmt.Println("OTP sent successfully to email:", req.Email)
 	ctx.JSON(200, models.Response{
 		Success: true,
-		Message: "OTP has been sent to your email"})
+		Message: "OTP has been sent to your email",
+	})
 }
+
 
 // VerifyOTP godoc
 // @Summary      Verify OTP
