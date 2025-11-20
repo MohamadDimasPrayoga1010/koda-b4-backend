@@ -498,8 +498,7 @@ func (uc *UserController) UpdateProfile(ctx *gin.Context) {
 			return
 		}
 
-		ext := file.Filename
-		ext = filepath.Ext(ext)
+		ext := strings.ToLower(filepath.Ext(file.Filename))
 		if ext != ".jpg" && ext != ".jpeg" && ext != ".png" {
 			ctx.JSON(http.StatusBadRequest, models.Response{
 				Success: false,
