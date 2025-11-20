@@ -846,7 +846,7 @@ func (pc *ProductController) GetFavoriteProducts(ctx *gin.Context) {
 			"id":          id,
 			"title":       title,
 			"description": desc,
-			"base_price":  price,
+			"basePrice":  price,
 			"image":       image,
 		})
 	}
