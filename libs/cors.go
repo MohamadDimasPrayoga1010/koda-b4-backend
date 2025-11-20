@@ -13,7 +13,7 @@ func SetupCORS() gin.HandlerFunc {
 	
 	config := cors.Config{
 		AllowOrigins:     []string{origin, "http://localhost:5173"},
-		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
+		AllowMethods:     []string{"GET","PATCH", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
 		MaxAge:           24 * time.Hour,
