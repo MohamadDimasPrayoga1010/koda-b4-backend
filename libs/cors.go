@@ -12,7 +12,7 @@ func SetupCORS() gin.HandlerFunc {
 	origin := os.Getenv("ALLOW_ORIGIN")
 	
 	config := cors.Config{
-		AllowOrigins:     []string{origin},
+		AllowOrigins:     []string{origin, "http://localhost:5173"},
 		AllowMethods:     []string{"GET", "POST", "PUT", "DELETE", "OPTIONS"},
 		AllowHeaders:     []string{"Origin", "Content-Type", "Authorization"},
 		AllowCredentials: true,
