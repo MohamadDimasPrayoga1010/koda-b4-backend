@@ -64,25 +64,12 @@ func UpdateProfile(db *pgxpool.Pool, userID int64, phone, address, fullname, ema
 			return ProfileResponse{}, errors.New("file type must be jpg, jpeg, or png")
 		}
 
-		cloudName := os.Getenv("CLOUDINARY_CLOUD_NAME")
-		apiKey := os.Getenv("CLOUDINARY_API_KEY")
-		apiSecret := os.Getenv("CLOUDINARY_API_SECRET")
-
-		if cloudName != "" && apiKey != "" && apiSecret != "" {
-
-			file, err := fileHeader.Open()
+		if os.Getenv("CLOUDINARY_API_KEY") != "" {
+			url, err := libs.UploadFile(fileHeader, "profile_images")
 			if err != nil {
 				return ProfileResponse{}, err
 			}
-			defer file.Close()
-
-			url, err := libs.UploadFile(file, "profile_images")
-			if err != nil {
-				return ProfileResponse{}, err
-			}
-
 			imagePath = &url
-
 		} else {
 			uploadDir := "./uploads/profile"
 			if err := os.MkdirAll(uploadDir, os.ModePerm); err != nil {
