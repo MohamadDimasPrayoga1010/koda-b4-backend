@@ -28,57 +28,56 @@ type AuthController struct {
 // @Failure      500  {object}  models.Response "Internal server error"
 // @Router       /auth/register [post]
 func (ac *AuthController) Register(ctx *gin.Context) {
-    var req models.UserRegister
+	var req models.UserRegister
 
-    if err := ctx.ShouldBindJSON(&req); err != nil {
-        ctx.JSON(400, models.Response{
-            Success: false,
-            Message: "Invalid request body",
-        })
-        return
-    }
+	if err := ctx.ShouldBindJSON(&req); err != nil {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Invalid request body",
+		})
+		return
+	}
 
-    hashed, err := libs.HashPassword(req.Password)
-    if err != nil {
-        ctx.JSON(500, models.Response{
-            Success: false,
-            Message: "Failed to hash password",
-        })
-        return
-    }
+	hashed, err := libs.HashPassword(req.Password)
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to hash password",
+		})
+		return
+	}
 
-    user, err := models.RegisterUser(ac.DB, req, hashed)
-    if err != nil {
-        if strings.Contains(err.Error(), "duplicate key") {
-            ctx.JSON(409, models.Response{
-                Success: false,
-                Message: "Email already registered",
-            })
-            return
-        }
-        ctx.JSON(500, models.Response{
-            Success: false,
-            Message: "Failed to register user",
-        })
-        return
-    }
+	user, err := models.RegisterUser(ac.DB, req, hashed)
+	if err != nil {
+		if strings.Contains(err.Error(), "duplicate key") {
+			ctx.JSON(409, models.Response{
+				Success: false,
+				Message: "Email already registered",
+			})
+			return
+		}
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to register user",
+		})
+		return
+	}
 
-    if req.Role == "admin" {
-        ctx.JSON(201, models.Response{
-            Success: true,
-            Message: "Admin registered successfully",
-            Data:    user,
-        })
-        return
-    }
+	if req.Role == "admin" {
+		ctx.JSON(201, models.Response{
+			Success: true,
+			Message: "Admin registered successfully",
+			Data:    user,
+		})
+		return
+	}
 
-    ctx.JSON(201, models.Response{
-        Success: true,
-        Message: "User registered successfully",
-        Data:    user,
-    })
+	ctx.JSON(201, models.Response{
+		Success: true,
+		Message: "User registered successfully",
+		Data:    user,
+	})
 }
-
 
 // Login godoc
 // @Summary      User login
@@ -165,24 +164,33 @@ func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 	err := ac.DB.QueryRow(context.Background(), "SELECT id FROM users WHERE email=$1", req.Email).Scan(&userID)
 	if err != nil {
 		ctx.JSON(404, models.Response{
-			Success: false, 
+			Success: false,
 			Message: "Email not found"})
 		return
 	}
 
 	otp := libs.GenerateOTP(6)
-	err = models.CreateForgotPassword(ac.DB, userID, otp, 5*time.Minute)
+	err = models.CreateForgotPassword(ac.DB, userID, otp, 2*time.Minute)
 	if err != nil {
 		ctx.JSON(500, models.Response{
-			Success: false, 
+			Success: false,
 			Message: "Failed to generate OTP"})
 		return
 	}
+	err = libs.SendOTPEmail(req.Email, otp)
+	if err != nil {
+		ctx.JSON(500, models.Response{
+			Success: false,
+			Message: "Failed to send OTP email"})
+		return
+	}
+
 
 	ctx.JSON(200, models.Response{
-		Success: true, 
+		Success: true,
 		Message: "OTP has been sent to your email"})
 }
+
 // VerifyOTP godoc
 // @Summary      Verify OTP
 // @Description  Verify OTP sent to user's email
@@ -212,7 +220,7 @@ func (ac *AuthController) VerifyOTP(ctx *gin.Context) {
 	err := ac.DB.QueryRow(context.Background(), "SELECT id FROM users WHERE email=$1", req.Email).Scan(&userID)
 	if err != nil {
 		ctx.JSON(404, models.Response{
-			Success: false, 
+			Success: false,
 			Message: "Email not found"})
 		return
 	}
@@ -220,14 +228,14 @@ func (ac *AuthController) VerifyOTP(ctx *gin.Context) {
 	fp, err := models.GetForgotPasswordByToken(ac.DB, req.OTP)
 	if err != nil || fp.UserID != userID {
 		ctx.JSON(401, models.Response{
-			Success: false, 
+			Success: false,
 			Message: "Invalid OTP"})
 		return
 	}
 
 	if time.Now().After(fp.ExpiresAt) {
 		ctx.JSON(401, models.Response{
-			Success: false, 
+			Success: false,
 			Message: "OTP expired"})
 		return
 	}
@@ -268,7 +276,7 @@ func (ac *AuthController) ResetPassword(ctx *gin.Context) {
 	fp, err := models.GetForgotPasswordByToken(ac.DB, req.Token)
 	if err != nil {
 		ctx.JSON(401, models.Response{
-			Success: false, 
+			Success: false,
 			Message: "Invalid or expired token"})
 		return
 	}
@@ -276,7 +284,7 @@ func (ac *AuthController) ResetPassword(ctx *gin.Context) {
 	hashed, err := libs.HashPassword(req.Password)
 	if err != nil {
 		ctx.JSON(500, models.Response{
-			Success: false, 
+			Success: false,
 			Message: "Failed to hash password"})
 		return
 	}
@@ -287,7 +295,7 @@ func (ac *AuthController) ResetPassword(ctx *gin.Context) {
 	)
 	if err != nil {
 		ctx.JSON(500, models.Response{
-			Success: false, 
+			Success: false,
 			Message: "Failed to reset password"})
 		return
 	}
