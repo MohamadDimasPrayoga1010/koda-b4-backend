@@ -21,6 +21,6 @@ func TransactionRoutes(r *gin.Engine, pg *pgxpool.Pool) {
 	}
 	r.GET("/history", middlewares.AuthMiddleware(""), tc.GetHistoryTransactions)
 	r.GET("/history/:id", middlewares.AuthMiddleware(""), tc.GetHistoryDetailById)
-	r.GET("/shippings", middlewares.AuthMiddleware(""), tc.GetPaymentMethods)
+	r.GET("/shippings", middlewares.AuthMiddleware(""), tc.GetShippingMethods)
 	r.GET("/payment-methods", middlewares.AuthMiddleware(""), tc.GetPaymentMethods)
 }
