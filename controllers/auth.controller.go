@@ -157,7 +157,9 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 
 func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 	var req models.ForgotPasswordRequest
+
 	if err := ctx.ShouldBindJSON(&req); err != nil {
+		fmt.Println("Invalid request body:", err)
 		ctx.JSON(400, models.Response{
 			Success: false,
 			Message: "Invalid request body",
@@ -166,11 +168,9 @@ func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 	}
 
 	fmt.Println("ForgotPassword request for email:", req.Email)
+
 	var userID int64
-	err := ac.DB.QueryRow(context.Background(),
-		"SELECT id FROM users WHERE email=$1",
-		req.Email,
-	).Scan(&userID)
+	err := ac.DB.QueryRow(context.Background(), "SELECT id FROM users WHERE email=$1", req.Email).Scan(&userID)
 	if err != nil {
 		fmt.Println("User not found:", err)
 		ctx.JSON(404, models.Response{
@@ -192,17 +192,19 @@ func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 		})
 		return
 	}
+	fmt.Println("ForgotPassword record created successfully")
 
 	err = libs.SendOTPEmail(libs.SendOptions{
-		To:      []string{req.Email},
-		Subject: "OTP Reset Password",
-		Body:    fmt.Sprintf("Your OTP is: %s. It will expire in 2 minutes.", otp),
+		To:         []string{req.Email},
+		Subject:    "OTP Reset Password",
+		Body:       fmt.Sprintf("Your OTP is: %s. It will expire in 2 minutes.", otp),
+		BodyIsHTML: false,
 	})
 	if err != nil {
 		fmt.Println("Error sending OTP email:", err)
 		ctx.JSON(500, models.Response{
 			Success: false,
-			Message: "Failed to send OTP email, please try again later",
+			Message: "Failed to send OTP email, please check SMTP configuration",
 		})
 		return
 	}
@@ -213,6 +215,7 @@ func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 		Message: "OTP has been sent to your email",
 	})
 }
+
 
 
 // VerifyOTP godoc
