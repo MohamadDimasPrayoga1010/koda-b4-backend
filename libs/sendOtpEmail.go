@@ -2,33 +2,61 @@ package libs
 
 import (
 	"fmt"
-	"log"
-	"net/smtp"
+	"os"
+	"gopkg.in/mail.v2"
 )
 
-func SendOTPEmail(toEmail, otp string) error {
-	from := "youremail@gmail.com"
-	password := "your-app-password"
+type SendOptions struct {
+	To          []string
+	Cc          []string
+	Bcc         []string
+	Subject     string
+	Body        string
+	BodyIsHTML  bool
+	Attachments []string
+}
 
-	smtpHost := "smtp.gmail.com"
-	smtpPort := "587"
+func SendOTPEmail(opt SendOptions) error {
+	host := os.Getenv("SMTP_HOST")
+	port := os.Getenv("SMTP_PORT")
+	user := os.Getenv("SMTP_USER")
+	pass := os.Getenv("SMTP_PASS")
+	from := os.Getenv("SMTP_FROM")
 
-	subject := "Your OTP Code"
-	body := fmt.Sprintf("Your OTP code is: %s\nIt will expire in 2 minutes.", otp)
-
-	msg := "From: " + from + "\r\n" +
-		"To: " + toEmail + "\r\n" +
-		"Subject: " + subject + "\r\n\r\n" +
-		body
-
-	auth := smtp.PlainAuth("", from, password, smtpHost)
-
-	err := smtp.SendMail(smtpHost+":"+smtpPort, auth, from, []string{toEmail}, []byte(msg))
-	if err != nil {
-		log.Println("Failed to send OTP email:", err)
-		return fmt.Errorf("failed to send OTP email: %w", err)
+	if host == "" || port == "" || user == "" || pass == "" || from == "" {
+		return fmt.Errorf("missing SMTP env config")
 	}
 
-	log.Println("OTP email sent successfully to", toEmail)
+	var portNum int
+	fmt.Sscanf(port, "%d", &portNum)
+
+	m := mail.NewMessage()
+	m.SetHeader("From", from)
+	if len(opt.To) > 0 {
+		m.SetHeader("To", opt.To...)
+	}
+	if len(opt.Cc) > 0 {
+		m.SetHeader("Cc", opt.Cc...)
+	}
+	if len(opt.Bcc) > 0 {
+		m.SetHeader("Bcc", opt.Bcc...)
+	}
+	m.SetHeader("Subject", opt.Subject)
+
+	if opt.BodyIsHTML {
+		m.SetBody("text/html", opt.Body)
+	} else {
+		m.SetBody("text/plain", opt.Body)
+	}
+
+	for _, f := range opt.Attachments {
+		m.Attach(f)
+	}
+
+	d := mail.NewDialer(host, portNum, user, pass)
+
+	if err := d.DialAndSend(m); err != nil {
+		return fmt.Errorf("send mail: %w", err)
+	}
 	return nil
 }

@@ -154,6 +154,7 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 // @Failure      404   {object}  models.Response
 // @Failure      500   {object}  models.Response
 // @Router       /auth/forgot-password [post]
+
 func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 	var req models.ForgotPasswordRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
@@ -166,7 +167,10 @@ func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 
 	fmt.Println("ForgotPassword request for email:", req.Email)
 	var userID int64
-	err := ac.DB.QueryRow(context.Background(), "SELECT id FROM users WHERE email=$1", req.Email).Scan(&userID)
+	err := ac.DB.QueryRow(context.Background(),
+		"SELECT id FROM users WHERE email=$1",
+		req.Email,
+	).Scan(&userID)
 	if err != nil {
 		fmt.Println("User not found:", err)
 		ctx.JSON(404, models.Response{
@@ -178,6 +182,7 @@ func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 
 	otp := libs.GenerateOTP(6)
 	fmt.Println("Generated OTP:", otp)
+
 	err = models.CreateForgotPassword(ac.DB, userID, otp, 2*time.Minute)
 	if err != nil {
 		fmt.Println("Error creating ForgotPassword record:", err)
@@ -188,7 +193,11 @@ func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 		return
 	}
 
-	err = libs.SendOTPEmail(req.Email, otp)
+	err = libs.SendOTPEmail(libs.SendOptions{
+		To:      []string{req.Email},
+		Subject: "OTP Reset Password",
+		Body:    fmt.Sprintf("Your OTP is: %s. It will expire in 2 minutes.", otp),
+	})
 	if err != nil {
 		fmt.Println("Error sending OTP email:", err)
 		ctx.JSON(500, models.Response{
