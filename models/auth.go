@@ -122,11 +122,15 @@ func LoginUser(db *pgxpool.Pool, email string) (*UserResponse, string, string, e
 func CreateForgotPassword(db *pgxpool.Pool, userID int64, token string, duration time.Duration) error {
 	expires := time.Now().Add(duration)
 	_, err := db.Exec(context.Background(),
-		`INSERT INTO forgot_password (user_id, token, expires_at) VALUES ($1, $2, $3)`,
+		`INSERT INTO forgot_password (user_id, token, expires_at)
+		 VALUES ($1, $2, $3)
+		 ON CONFLICT (user_id)
+		 DO UPDATE SET token = EXCLUDED.token, expires_at = EXCLUDED.expires_at`,
 		userID, token, expires,
 	)
 	return err
 }
+
 
 func GetForgotPasswordByToken(db *pgxpool.Pool, token string) (*ForgotPassword, error) {
 	var fp ForgotPassword

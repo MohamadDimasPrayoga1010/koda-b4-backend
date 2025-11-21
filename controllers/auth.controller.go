@@ -157,7 +157,6 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 
 func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 	var req models.ForgotPasswordRequest
-
 	if err := ctx.ShouldBindJSON(&req); err != nil {
 		fmt.Println("Invalid request body:", err)
 		ctx.JSON(400, models.Response{
@@ -170,7 +169,9 @@ func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 	fmt.Println("ForgotPassword request for email:", req.Email)
 
 	var userID int64
-	err := ac.DB.QueryRow(context.Background(), "SELECT id FROM users WHERE email=$1", req.Email).Scan(&userID)
+	err := ac.DB.QueryRow(context.Background(),
+		"SELECT id FROM users WHERE email=$1", req.Email,
+	).Scan(&userID)
 	if err != nil {
 		fmt.Println("User not found:", err)
 		ctx.JSON(404, models.Response{
@@ -185,14 +186,24 @@ func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 
 	err = models.CreateForgotPassword(ac.DB, userID, otp, 2*time.Minute)
 	if err != nil {
-		fmt.Println("Error creating ForgotPassword record:", err)
-		ctx.JSON(500, models.Response{
-			Success: false,
-			Message: "Failed to generate OTP",
-		})
-		return
+		fmt.Println("Insert failed, trying to update existing record:", err)
+		_, err2 := ac.DB.Exec(context.Background(),
+			`UPDATE forgot_password 
+			 SET token=$1, expires_at=$2 
+			 WHERE user_id=$3`,
+			otp, time.Now().Add(2*time.Minute), userID,
+		)
+		if err2 != nil {
+			fmt.Println("Failed to update existing ForgotPassword record:", err2)
+			ctx.JSON(500, models.Response{
+				Success: false,
+				Message: "Failed to generate OTP",
+			})
+			return
+		}
 	}
-	fmt.Println("ForgotPassword record created successfully")
+
+	fmt.Println("ForgotPassword record created/updated successfully")
 
 	err = libs.SendOTPEmail(libs.SendOptions{
 		To:         []string{req.Email},
@@ -215,7 +226,6 @@ func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 		Message: "OTP has been sent to your email",
 	})
 }
-
 
 
 // VerifyOTP godoc
