@@ -377,3 +377,42 @@ func (tc *TransactionController) GetHistoryDetailById(ctx *gin.Context) {
 		Data:    history,
 	})
 }
+
+
+func (tc *TransactionController) GetShippingMethods(ctx *gin.Context) {
+    rows, err := tc.DB.Query(ctx, `SELECT id, name FROM shippings ORDER BY id ASC`)
+    if err != nil {
+        ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+        return
+    }
+    defer rows.Close()
+
+    var shippings []map[string]interface{}
+    for rows.Next() {
+        var id int64
+        var name string
+        rows.Scan(&id, &name)
+        shippings = append(shippings, map[string]interface{}{"id": id, "name": name})
+    }
+
+    ctx.JSON(http.StatusOK, gin.H{"success": true, "data": shippings})
+}
+
+func (tc *TransactionController) GetPaymentMethods(ctx *gin.Context) {
+    rows, err := tc.DB.Query(ctx, `SELECT id, name, image FROM payment_methods ORDER BY id ASC`)
+    if err != nil {
+        ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+        return
+    }
+    defer rows.Close()
+
+    var payments []map[string]interface{}
+    for rows.Next() {
+        var id int64
+        var name, image string
+        rows.Scan(&id, &name, &image)
+        payments = append(payments, map[string]interface{}{"id": id, "name": name, "image": image})
+    }
+
+    ctx.JSON(http.StatusOK, gin.H{"success": true, "data": payments})
+}
