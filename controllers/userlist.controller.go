@@ -578,6 +578,20 @@ func (uc *UserController) GetProfile(ctx *gin.Context) {
 		return
 	}
 
+	if err == pgx.ErrNoRows {
+		err = uc.DB.QueryRow(ctx, `
+            SELECT created_at FROM users WHERE id=$1
+        `, userID).Scan(&profile.CreatedAt)
+		if err != nil {
+			ctx.JSON(http.StatusInternalServerError, models.Response{
+				Success: false,
+				Message: err.Error(),
+			})
+			return
+		}
+		profile.UpdatedAt = profile.CreatedAt
+	}
+
 	var fullname, email string
 	err = uc.DB.QueryRow(ctx, `
         SELECT fullname, email FROM users WHERE id=$1
@@ -594,9 +608,9 @@ func (uc *UserController) GetProfile(ctx *gin.Context) {
 		ID:        profile.ID,
 		Fullname:  fullname,
 		Email:     email,
-		Image:     profile.Image,  
-		Phone:     profile.Phone,  
-		Address:   profile.Address, 
+		Image:     profile.Image,
+		Phone:     profile.Phone,
+		Address:   profile.Address,
 		UserID:    profile.UserID,
 		CreatedAt: profile.CreatedAt,
 		UpdatedAt: profile.UpdatedAt,
