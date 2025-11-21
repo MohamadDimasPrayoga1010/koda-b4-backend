@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/gin-gonic/gin/binding"
+	"github.com/jackc/pgx/v5"
 	"github.com/jackc/pgx/v5/pgxpool"
 )
 
@@ -568,7 +569,8 @@ func (uc *UserController) GetProfile(ctx *gin.Context) {
 		&profile.ID, &profile.Phone, &profile.Address, &profile.Image,
 		&profile.UserID, &profile.CreatedAt, &profile.UpdatedAt,
 	)
-	if err != nil {
+
+	if err != nil && err != pgx.ErrNoRows {
 		ctx.JSON(http.StatusInternalServerError, models.Response{
 			Success: false,
 			Message: err.Error(),
@@ -587,13 +589,14 @@ func (uc *UserController) GetProfile(ctx *gin.Context) {
 		})
 		return
 	}
+
 	resp := models.ProfileResponse{
 		ID:        profile.ID,
 		Fullname:  fullname,
 		Email:     email,
-		Image:     profile.Image,
-		Phone:     profile.Phone,
-		Address:   profile.Address,
+		Image:     profile.Image,  
+		Phone:     profile.Phone,  
+		Address:   profile.Address, 
 		UserID:    profile.UserID,
 		CreatedAt: profile.CreatedAt,
 		UpdatedAt: profile.UpdatedAt,
@@ -605,4 +608,5 @@ func (uc *UserController) GetProfile(ctx *gin.Context) {
 		Data:    resp,
 	})
 }
+
 
