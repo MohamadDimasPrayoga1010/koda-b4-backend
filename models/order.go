@@ -301,6 +301,17 @@ type TransactionItemDetail struct {
 	Subtotal      float64 `json:"subtotal"` 
 }
 
+type ShippingMethod struct {
+    ID   int64  `json:"id"`
+    Name string `json:"name"`
+}
+
+type PaymentMethod struct {
+    ID    int64  `json:"id"`
+    Name  string `json:"name"`
+    Image string `json:"image"`
+}
+
 func GetHistoryDetail(db *pgxpool.Pool, transactionID, userID int64) (*HistoryDetail, error) {
 	ctx := context.Background()
 

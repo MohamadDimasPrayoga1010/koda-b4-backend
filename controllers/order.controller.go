@@ -89,7 +89,6 @@ func (tc *TransactionController) GetTransactions(ctx *gin.Context) {
 	ctx.JSON(200, response)
 }
 
-
 // GetTransactionByID godoc
 // @Summary Get transaction by ID
 // @Description Mengambil detail transaksi berdasarkan ID (Admin Only)
@@ -177,7 +176,7 @@ func (tc *TransactionController) UpdateTransactionStatus(ctx *gin.Context) {
 		"data": map[string]interface{}{
 			"transactionId": transactionID,
 			"newStatus":     statusName,
-			"code":           200,
+			"code":          200,
 		},
 	})
 }
@@ -279,7 +278,7 @@ func (tc *TransactionController) GetHistoryTransactions(ctx *gin.Context) {
 		page = 1
 	}
 
-	limit := 5 
+	limit := 5
 
 	histories, total, err := models.GetHistoryTransactions(tc.DB, userID, status, month, page, limit)
 	if err != nil {
@@ -378,41 +377,84 @@ func (tc *TransactionController) GetHistoryDetailById(ctx *gin.Context) {
 	})
 }
 
-
 func (tc *TransactionController) GetShippingMethods(ctx *gin.Context) {
+    if _, exists := ctx.Get("userID"); !exists {
+        ctx.JSON(http.StatusUnauthorized, models.Response{
+            Success: false,
+            Message: "User not authenticated",
+        })
+        return
+    }
+
     rows, err := tc.DB.Query(ctx, `SELECT id, name FROM shippings ORDER BY id ASC`)
     if err != nil {
-        ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+        ctx.JSON(http.StatusInternalServerError, models.Response{
+            Success: false,
+            Message: "Failed to fetch shipping methods",
+            Data:    err.Error(),
+        })
         return
     }
     defer rows.Close()
 
-    var shippings []map[string]interface{}
+    var shippings []models.ShippingMethod
     for rows.Next() {
-        var id int64
-        var name string
-        rows.Scan(&id, &name)
-        shippings = append(shippings, map[string]interface{}{"id": id, "name": name})
+        var s models.ShippingMethod
+        if err := rows.Scan(&s.ID, &s.Name); err != nil {
+            ctx.JSON(http.StatusInternalServerError, models.Response{
+                Success: false,
+                Message: "Failed to parse shipping method",
+                Data:    err.Error(),
+            })
+            return
+        }
+        shippings = append(shippings, s)
     }
 
-    ctx.JSON(http.StatusOK, gin.H{"success": true, "data": shippings})
+    ctx.JSON(http.StatusOK, models.Response{
+        Success: true,
+        Message: "Shipping methods fetched successfully",
+        Data:    shippings,
+    })
 }
 
 func (tc *TransactionController) GetPaymentMethods(ctx *gin.Context) {
+    if _, exists := ctx.Get("userID"); !exists {
+        ctx.JSON(http.StatusUnauthorized, models.Response{
+            Success: false,
+            Message: "User not authenticated",
+        })
+        return
+    }
+
     rows, err := tc.DB.Query(ctx, `SELECT id, name, image FROM payment_methods ORDER BY id ASC`)
     if err != nil {
-        ctx.JSON(http.StatusInternalServerError, gin.H{"success": false, "message": err.Error()})
+        ctx.JSON(http.StatusInternalServerError, models.Response{
+            Success: false,
+            Message: "Failed to fetch payment methods",
+            Data:    err.Error(),
+        })
         return
     }
     defer rows.Close()
 
-    var payments []map[string]interface{}
+    var payments []models.PaymentMethod
     for rows.Next() {
-        var id int64
-        var name, image string
-        rows.Scan(&id, &name, &image)
-        payments = append(payments, map[string]interface{}{"id": id, "name": name, "image": image})
+        var p models.PaymentMethod
+        if err := rows.Scan(&p.ID, &p.Name, &p.Image); err != nil {
+            ctx.JSON(http.StatusInternalServerError, models.Response{
+                Success: false,
+                Message: "Failed to parse payment method",
+                Data:    err.Error(),
+            })
+            return
+        }
+        payments = append(payments, p)
     }
 
-    ctx.JSON(http.StatusOK, gin.H{"success": true, "data": payments})
+    ctx.JSON(http.StatusOK, models.Response{
+        Success: true,
+        Message: "Payment methods fetched successfully",
+        Data:    payments,
+    })
 }
