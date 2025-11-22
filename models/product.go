@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"mime/multipart"
 	"strconv"
 	"time"
@@ -228,6 +229,7 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 	if !allowedSortFields[sortBy] {
 		sortBy = "created_at"
 	}
+
 	if order != "ASC" && order != "DESC" {
 		order = "ASC"
 	}
@@ -235,6 +237,7 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 	totalQuery := "SELECT COUNT(*) FROM products p"
 	args := []interface{}{}
 	argIndex := 1
+
 	if search != "" {
 		totalQuery += fmt.Sprintf(" WHERE LOWER(p.title) LIKE LOWER($%d) OR LOWER(p.description) LIKE LOWER($%d)", argIndex, argIndex+1)
 		args = append(args, "%"+search+"%", "%"+search+"%")
@@ -247,10 +250,17 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 	}
 
 	query := `
-	SELECT p.id, p.title, p.description, p.base_price, p.stock,
-	       p.category_id, c.name AS category_name,
-	       CASE WHEN pr.id IS NOT NULL THEN true ELSE false END AS is_flashsale,
-	       p.created_at, p.updated_at
+	SELECT 
+		p.id, 
+		p.title, 
+		p.description, 
+		p.base_price, 
+		p.stock,
+		p.category_id, 
+		c.name AS category_name,
+		CASE WHEN pr.id IS NOT NULL THEN true ELSE false END AS is_flashsale,
+		p.created_at, 
+		p.updated_at
 	FROM products p
 	LEFT JOIN categories c ON c.id = p.category_id
 	LEFT JOIN product_promos pp ON pp.product_id = p.id
@@ -259,9 +269,11 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 `
 
 	if search != "" {
-		query += fmt.Sprintf(" WHERE LOWER(p.title) LIKE LOWER($1) OR LOWER(p.description) LIKE LOWER($2)")
+		query += " WHERE LOWER(p.title) LIKE LOWER($1) OR LOWER(p.description) LIKE LOWER($2)"
 	}
+
 	query += fmt.Sprintf(" ORDER BY %s %s LIMIT $%d OFFSET $%d", sortBy, order, argIndex, argIndex+1)
+
 	args = append(args, limit, offset)
 
 	rows, err := db.Query(ctx, query, args...)
@@ -272,64 +284,76 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 
 	var products []ProductResponse
 
-	for rows.Next() {
-		var p ProductResponse
-		var categoryName string
-		if err := rows.Scan(
-			&p.ID, &p.Title, &p.Description, &p.BasePrice, &p.Stock,
-			&p.Category.ID, &categoryName, &p.CreatedAt, &p.UpdatedAt,
-		); err != nil {
-			continue
-		}
-		p.Category.Name = categoryName
+for rows.Next() {
+	var p ProductResponse
+	var categoryName string
+	var isFlashSale bool
 
-		p.Variants = []Variant{}
-		p.Sizes = []Size{}
-		p.Images = []ProductImage{}
+	err := rows.Scan(
+		&p.ID,
+		&p.Title,
+		&p.Description,
+		&p.BasePrice,
+		&p.Stock,
+		&p.Category.ID,
+		&categoryName,
+		&isFlashSale,
+		&p.CreatedAt,
+		&p.UpdatedAt,
+	)
 
-		variantRows, _ := db.Query(ctx,
-			`SELECT v.id, v.name, v.additional_price 
-			 FROM variants v
-			 JOIN product_variants pv ON pv.variant_id = v.id
-			 WHERE pv.product_id = $1`, p.ID)
-		for variantRows.Next() {
-			var v Variant
-			variantRows.Scan(&v.ID, &v.Name, &v.AdditionalPrice)
-			p.Variants = append(p.Variants, v)
-		}
-		variantRows.Close()
-
-		sizeRows, _ := db.Query(ctx,
-			`SELECT s.id, s.name, s.additional_price
-			 FROM sizes s
-			 JOIN product_sizes ps ON ps.size_id = s.id
-			 WHERE ps.product_id = $1`, p.ID)
-		for sizeRows.Next() {
-			var s Size
-			sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice)
-			p.Sizes = append(p.Sizes, s)
-		}
-		sizeRows.Close()
-
-		imageRows, _ := db.Query(ctx,
-			`SELECT image, updated_at
-			 FROM product_images
-			 WHERE product_id=$1`, p.ID)
-		for imageRows.Next() {
-			var img ProductImage
-			img.ProductID = p.ID
-			if err := imageRows.Scan(&img.Image, &img.UpdatedAt); err != nil {
-				continue
-			}
-			p.Images = append(p.Images, img)
-		}
-		imageRows.Close()
-
-		products = append(products, p)
+	if err != nil {
+		log.Println("SCAN ERROR:", err)
+		continue
 	}
+
+	p.Category.Name = categoryName
+	p.IsFlashSale = isFlashSale
+
+	variantRows, _ := db.Query(ctx,
+		`SELECT v.id, v.name, v.additional_price 
+		 FROM variants v
+		 JOIN product_variants pv ON pv.variant_id = v.id
+		 WHERE pv.product_id = $1`, p.ID)
+	for variantRows.Next() {
+		var v Variant
+		variantRows.Scan(&v.ID, &v.Name, &v.AdditionalPrice)
+		p.Variants = append(p.Variants, v)
+	}
+	variantRows.Close()
+
+
+	sizeRows, _ := db.Query(ctx,
+		`SELECT s.id, s.name, s.additional_price
+		 FROM sizes s
+		 JOIN product_sizes ps ON ps.size_id = s.id
+		 WHERE ps.product_id = $1`, p.ID)
+	for sizeRows.Next() {
+		var s Size
+		sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice)
+		p.Sizes = append(p.Sizes, s)
+	}
+	sizeRows.Close()
+
+	imageRows, _ := db.Query(ctx,
+		`SELECT image, updated_at
+		 FROM product_images
+		 WHERE product_id = $1`, p.ID)
+	for imageRows.Next() {
+		var img ProductImage
+		img.ProductID = p.ID
+		imageRows.Scan(&img.Image, &img.UpdatedAt)
+		p.Images = append(p.Images, img)
+	}
+	imageRows.Close()
+
+	products = append(products, p)
+}
+
 
 	return products, total, nil
 }
+
 
 func GetProductByID(db *pgxpool.Pool, productID int64) (ProductResponse, error) {
 	ctx := context.Background()
