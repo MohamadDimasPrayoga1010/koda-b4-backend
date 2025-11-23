@@ -22,7 +22,8 @@ func ProductRoutes(r *gin.Engine, pg *pgxpool.Pool) {
 		admin.GET("/products/:id/images", pc.GetProductImages)             
 		admin.GET("/products/:id/images/:image_id", pc.GetProductImageByID) 
 		admin.PATCH("/products/:id/images/:image_id", pc.UpdateProductImage) 
-		admin.DELETE("/products/:id/images/:image_id", pc.DeleteProductImage) 
+		admin.DELETE("/products/:id/images/:image_id", pc.DeleteProductImage)
+		admin.GET("type-products", pc.GetTypeProduct) 
 	}
 	r.GET("/favorite-products",pc.GetFavoriteProducts)
 	r.GET("/products",pc.FilterProducts)

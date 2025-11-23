@@ -1624,3 +1624,18 @@ func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
 		Data:    order,
 	})
 }
+
+
+func (pc *ProductController) GetTypeProduct(ctx *gin.Context) {
+    sizes, _ := models.GetAllSizes(pc.DB)
+    variants, _ := models.GetAllVariants(pc.DB)
+
+    ctx.JSON(200, models.Response{
+        Success: true,
+        Message: "Master data fetched successfully",
+        Data: models.ProductTypeResponse{
+            Sizes:      sizes,
+            Variants:   variants,
+        },
+    })
+}

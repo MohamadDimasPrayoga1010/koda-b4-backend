@@ -955,3 +955,46 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 
 	return order, nil
 }
+
+
+type ProductTypeResponse struct {
+    Sizes      []Size           `json:"sizes"`
+    Variants   []Variant        `json:"variants"`
+}
+
+func GetAllSizes(db *pgxpool.Pool) ([]Size, error) {
+    ctx := context.Background()
+    rows, err := db.Query(ctx, `SELECT id, name, additional_price FROM sizes`)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var sizes []Size
+    for rows.Next() {
+        var s Size
+        if err := rows.Scan(&s.ID, &s.Name, &s.AdditionalPrice); err == nil {
+            sizes = append(sizes, s)
+        }
+    }
+    return sizes, nil
+}
+
+func GetAllVariants(db *pgxpool.Pool) ([]Variant, error) {
+    ctx := context.Background()
+    rows, err := db.Query(ctx, `SELECT id, name, additional_price FROM variants`)
+    if err != nil {
+        return nil, err
+    }
+    defer rows.Close()
+
+    var variants []Variant
+    for rows.Next() {
+        var v Variant
+        if err := rows.Scan(&v.ID, &v.Name, &v.AdditionalPrice); err == nil {
+            variants = append(variants, v)
+        }
+    }
+    return variants, nil
+}
+
