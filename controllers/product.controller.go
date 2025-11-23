@@ -201,17 +201,22 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 	cacheKey := fmt.Sprintf("products:page:%d:limit:%d:search:%s:sort:%s:order:%s",
 		page, limit, search, sortBy, order)
 
+	type CachedProducts struct {
+		Products []models.ProductResponse `json:"products"`
+		Total    int                      `json:"total"`
+	}
+
 	cached, err := libs.RedisClient.Get(libs.Ctx, cacheKey).Result()
 	if err == nil && cached != "" {
-		var products []models.ProductResponse
-		if err := json.Unmarshal([]byte(cached), &products); err == nil {
-			pagination, links := libs.BuildHateoasGlobal("/products", page, limit, len(products), ctx.Request.URL.Query())
+		var cachedData CachedProducts
+		if err := json.Unmarshal([]byte(cached), &cachedData); err == nil {
+			pagination, links := libs.BuildHateoasGlobal("/products", page, limit, cachedData.Total, ctx.Request.URL.Query())
 			response := models.ProductListResponse{
 				Success:    true,
 				Message:    "Products fetched from cache",
 				Pagination: pagination,
 				Links:      links,
-				Data:       products,
+				Data:       cachedData.Products,
 			}
 			ctx.JSON(http.StatusOK, response)
 			return
@@ -230,9 +235,12 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 		return
 	}
 
-	dataJSON, _ := json.Marshal(products)
+	cachedData := CachedProducts{
+		Products: products,
+		Total:    total,
+	}
+	dataJSON, _ := json.Marshal(cachedData)
 	libs.RedisClient.Set(libs.Ctx, cacheKey, dataJSON, 10*time.Minute)
-
 	pagination, links := libs.BuildHateoasGlobal("/products", page, limit, total, ctx.Request.URL.Query())
 
 	response := models.ProductListResponse{
@@ -245,6 +253,7 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, response)
 }
+
 
 
 
