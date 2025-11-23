@@ -314,7 +314,8 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 	if err != nil {
 		ctx.JSON(400, models.Response{
 			Success: false,
-			Message: "Invalid product ID"})
+			Message: "Invalid product ID",
+		})
 		return
 	}
 
@@ -341,7 +342,6 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 	uploadDir := "./uploads/products"
 	os.MkdirAll(uploadDir, os.ModePerm)
 
-	savedFiles := []string{}
 	maxSize := int64(2 * 1024 * 1024)
 	allowedExts := []string{".jpg", ".jpeg", ".png"}
 
@@ -354,6 +354,9 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 		return false
 	}
 
+	useCloudinary := os.Getenv("CLOUDINARY_API_KEY") != ""
+
+	savedFiles := []string{}
 	for _, file := range req.Images {
 		if file.Size > maxSize {
 			ctx.JSON(400, models.Response{
@@ -367,15 +370,39 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 		if !contains(allowedExts, ext) {
 			ctx.JSON(400, models.Response{
 				Success: false,
-				Message: "Invalid file type(only png, jpg, jpeg): " + file.Filename})
+				Message: "Invalid file type(only png, jpg, jpeg): " + file.Filename,
+			})
 			return
 		}
 
-		filename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), strings.TrimSuffix(file.Filename, ext), ext)
-		fullPath := filepath.Join(uploadDir, filename)
-		if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
-			continue
+		name := strings.TrimSuffix(file.Filename, ext)
+		name = strings.ReplaceAll(name, " ", "_")
+
+		var filename string
+		if useCloudinary {
+			url, err := libs.UploadFile(file, "products")
+			if err != nil {
+				ctx.JSON(500, models.Response{
+					Success: false,
+					Message: "Failed to upload file to Cloudinary",
+					Data:    err.Error(),
+				})
+				return
+			}
+			filename = url
+		} else {
+			filename = fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), name, ext)
+			fullPath := filepath.Join(uploadDir, filename)
+			if err := ctx.SaveUploadedFile(file, fullPath); err != nil {
+				ctx.JSON(500, models.Response{
+					Success: false,
+					Message: "Failed to save file locally",
+					Data:    err.Error(),
+				})
+				return
+			}
 		}
+
 		savedFiles = append(savedFiles, filename)
 	}
 
@@ -395,6 +422,7 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 		Data:    product,
 	})
 }
+
 
 // DeleteProduct godoc
 // @Summary Delete a product
