@@ -6,6 +6,8 @@ import (
 	"context"
 	"fmt"
 	"net/http"
+	"os"
+	"time"
 
 	"path/filepath"
 	"strconv"
@@ -85,7 +87,7 @@ func (uc *UserController) GetUsersList(ctx *gin.Context) {
 		args = append(args, "%"+search+"%")
 		argIndex++
 	}
-	
+
 	countQuery := "SELECT COUNT(*) FROM users u LEFT JOIN profile p ON p.user_id = u.id WHERE 1=1"
 	if search != "" {
 		countQuery += fmt.Sprintf(
@@ -162,10 +164,6 @@ func (uc *UserController) GetUsersList(ctx *gin.Context) {
 	ctx.JSON(200, response)
 }
 
-
-
-
-
 // GetUserByID godoc
 // @Summary Get user by ID
 // @Description Mengambil detail user beserta profile berdasarkan ID (Admin Only)
@@ -178,7 +176,7 @@ func (uc *UserController) GetUsersList(ctx *gin.Context) {
 // @Failure 500 {object} models.Response
 // @Router /admin/users/{id} [get]
 func (uc *UserController) GetUserByID(ctx *gin.Context) {
-	
+
 	idParam := ctx.Param("id")
 	userID, err := strconv.ParseInt(idParam, 10, 64)
 	if err != nil {
@@ -201,7 +199,7 @@ func (uc *UserController) GetUserByID(ctx *gin.Context) {
 	`
 
 	var u models.UserList
-	p := &models.Profile{} 
+	p := &models.Profile{}
 
 	err = uc.DB.QueryRow(context.Background(), query, userID).Scan(
 		&u.ID, &u.Fullname, &u.Email, &u.Role,
@@ -225,7 +223,6 @@ func (uc *UserController) GetUserByID(ctx *gin.Context) {
 		Data:    u,
 	})
 }
-
 
 // AddUser godoc
 // @Summary Create a new user
@@ -258,7 +255,7 @@ func (auc *UserController) AddUser(ctx *gin.Context) {
 	}
 
 	if req.Image != nil {
-		const maxSize = 2 * 1024 * 1024 
+		const maxSize = 2 * 1024 * 1024
 		if req.Image.Size > maxSize {
 			ctx.JSON(400, models.Response{
 				Success: false,
@@ -267,13 +264,18 @@ func (auc *UserController) AddUser(ctx *gin.Context) {
 			return
 		}
 
-		allowedExts := map[string]bool{
-			".jpg":  true,
-			".jpeg": true,
-			".png":  true,
-		}
+		allowedExts := []string{".jpg", ".jpeg", ".png"}
 		ext := strings.ToLower(filepath.Ext(req.Image.Filename))
-		if !allowedExts[ext] {
+
+		valid := false
+		for _, v := range allowedExts {
+			if v == ext {
+				valid = true
+				break
+			}
+		}
+
+		if !valid {
 			ctx.JSON(400, models.Response{
 				Success: false,
 				Message: "Format file tidak didukung (jpg/jpeg/png): " + req.Image.Filename,
@@ -282,10 +284,57 @@ func (auc *UserController) AddUser(ctx *gin.Context) {
 		}
 	}
 
-	user, profile, err := models.AddUser(auc.DB,
-		req.Fullname, req.Email, req.Password, req.Role,
-		req.Phone, req.Address, req.Image,
+	uploadDir := "./uploads/users"
+	os.MkdirAll(uploadDir, os.ModePerm)
+
+	useCloudinary := os.Getenv("CLOUDINARY_API_KEY") != ""
+
+	var savedImage string
+
+	if req.Image != nil {
+		ext := filepath.Ext(req.Image.Filename)
+		name := strings.TrimSuffix(req.Image.Filename, ext)
+		name = strings.ReplaceAll(name, " ", "_")
+
+		if useCloudinary {
+			url, err := libs.UploadFile(req.Image, "users")
+			if err != nil {
+				ctx.JSON(500, models.Response{
+					Success: false,
+					Message: "Failed to upload file to Cloudinary",
+					Data:    err.Error(),
+				})
+				return
+			}
+			savedImage = url
+
+		} else {
+			filename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), name, ext)
+			fullPath := filepath.Join(uploadDir, filename)
+
+			if err := ctx.SaveUploadedFile(req.Image, fullPath); err != nil {
+				ctx.JSON(500, models.Response{
+					Success: false,
+					Message: "Failed to save file locally",
+					Data:    err.Error(),
+				})
+				return
+			}
+
+			savedImage = filename
+		}
+	}
+	user, profile, err := models.AddUser(
+		auc.DB,
+		req.Fullname,
+		req.Email,
+		req.Password,
+		req.Role,
+		req.Phone,
+		req.Address,
+		savedImage, 
 	)
+
 	if err != nil {
 		if err.Error() == "email already exists" {
 			ctx.JSON(409, models.Response{
@@ -294,6 +343,7 @@ func (auc *UserController) AddUser(ctx *gin.Context) {
 			})
 			return
 		}
+
 		ctx.JSON(500, models.Response{
 			Success: false,
 			Message: "Gagal membuat user",
@@ -303,11 +353,11 @@ func (auc *UserController) AddUser(ctx *gin.Context) {
 	}
 
 	type UserResponse struct {
-		ID        int64           `json:"id"`
-		Fullname  string          `json:"fullname"`
-		Email     string          `json:"email"`
-		Role      string          `json:"role"`
-		Profile   *models.Profile `json:"profile,omitempty"`
+		ID       int64           `json:"id"`
+		Fullname string          `json:"fullname"`
+		Email    string          `json:"email"`
+		Role     string          `json:"role"`
+		Profile  *models.Profile `json:"profile,omitempty"`
 	}
 
 	resp := UserResponse{
@@ -324,8 +374,6 @@ func (auc *UserController) AddUser(ctx *gin.Context) {
 		Data:    resp,
 	})
 }
-
-
 
 
 // EditUser godoc
@@ -359,8 +407,7 @@ func (auc *UserController) EditUser(ctx *gin.Context) {
 	file, _ := ctx.FormFile("image")
 
 	if file != nil {
-		const maxSize = 2 * 1024 * 1024
-		if file.Size > maxSize {
+		if file.Size > 2*1024*1024 {
 			ctx.JSON(400, models.Response{
 				Success: false,
 				Message: "File terlalu besar (max 2MB): " + file.Filename,
@@ -383,14 +430,21 @@ func (auc *UserController) EditUser(ctx *gin.Context) {
 		}
 	}
 
-	user, profile, err := models.UpdateUser(auc.DB, userID, fullname, email, password, phone, address, file)
+	user, profile, err := models.UpdateUser(
+		auc.DB,
+		userID,
+		fullname, email, password,
+		phone, address,
+		file, 
+	)
+
 	if err != nil {
 		ctx.JSON(500, models.Response{
 			Success: false,
 			Message: "Gagal update user",
 			Data:    err.Error(),
 		})
-		return 
+		return
 	}
 
 	ctx.JSON(200, models.Response{
@@ -526,7 +580,6 @@ func (uc *UserController) UpdateProfile(ctx *gin.Context) {
 	})
 }
 
-
 // GetProfile godoc
 // @Summary Get current user's profile
 // @Description Get profile info for the logged-in user
@@ -622,5 +675,3 @@ func (uc *UserController) GetProfile(ctx *gin.Context) {
 		Data:    resp,
 	})
 }
-
-
