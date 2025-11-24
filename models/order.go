@@ -2,6 +2,7 @@ package models
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 
@@ -11,9 +12,11 @@ import (
 )
 
 type TransactionItem struct {
-	Title string `json:"title"`
-	Qty   int    `json:"qty"`
-	Size  string `json:"size,omitempty"`
+	Title   string `json:"title"`
+	Qty     int    `json:"qty"`
+	Size    string `json:"size,omitempty"`
+	Image   string `json:"image,omitempty"`
+	Variant string `json:"variant,omitempty"`
 }
 
 type Transaction struct {
@@ -44,26 +47,25 @@ func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, off
 	}
 
 	query := `
-		SELECT 
-			t.id,
-			t.invoice_number AS no_orders,
-			t.created_at,
-			t.status AS status_name,
-			u.fullname AS user_fullname,
-			t.address AS user_address,
-			t.phone AS user_phone,
-			pm.name AS payment_method,
-			sh.name AS shipping_name,
-			COALESCE(SUM(pr.base_price * ti.quantity), 0) AS total
-		FROM transactions t
-		LEFT JOIN users u ON u.id = t.user_id
-		LEFT JOIN payment_methods pm ON pm.id = t.payment_method_id
-		LEFT JOIN shippings sh ON sh.id = t.shipping_id
-		LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
-		LEFT JOIN products pr ON pr.id = ti.product_id
-		WHERE 1=1
-	`
-
+        SELECT 
+            t.id,
+            t.invoice_number AS no_orders,
+            t.created_at,
+            t.status AS status_name,
+            u.fullname AS user_fullname,
+            t.address AS user_address,
+            t.phone AS user_phone,
+            pm.name AS payment_method,
+            sh.name AS shipping_name,
+            COALESCE(SUM(pr.base_price * ti.quantity), 0) AS total
+        FROM transactions t
+        LEFT JOIN users u ON u.id = t.user_id
+        LEFT JOIN payment_methods pm ON pm.id = t.payment_method_id
+        LEFT JOIN shippings sh ON sh.id = t.shipping_id
+        LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
+        LEFT JOIN products pr ON pr.id = ti.product_id
+        WHERE 1=1
+    `
 	if search != "" {
 		query += " AND (LOWER(u.fullname) LIKE LOWER($" + strconv.Itoa(argIdx) + ") OR LOWER(t.invoice_number) LIKE LOWER($" + strconv.Itoa(argIdx) + "))"
 		queriParams = append(queriParams, "%"+search+"%")
@@ -82,6 +84,7 @@ func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, off
 	defer rows.Close()
 
 	var transactions []Transaction
+
 	for rows.Next() {
 		var t Transaction
 		t.OrderItems = make([]TransactionItem, 0)
@@ -91,30 +94,54 @@ func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, off
 			&t.UserFullname, &t.UserAddress, &t.UserPhone,
 			&t.PaymentMethod, &t.ShippingName, &t.Total,
 		); err != nil {
+			fmt.Println("Scan transaction error:", err)
+			continue
+		}
+		
+		itemRows, err := db.Query(context.Background(), `
+            SELECT 
+                pr.title, 
+                s.name AS size, 
+                v.name AS variant, 
+                ti.quantity AS qty, 
+                COALESCE(pi.image, '') AS image
+            FROM transaction_items ti
+            JOIN products pr ON pr.id = ti.product_id
+            LEFT JOIN sizes s ON s.id = ti.size_id
+            LEFT JOIN variants v ON v.id = ti.variant_id
+            LEFT JOIN LATERAL (
+                SELECT image 
+                FROM product_images 
+                WHERE product_id = pr.id
+                ORDER BY id ASC
+                LIMIT 1
+            ) pi ON true
+            WHERE ti.transaction_id=$1
+        `, t.ID)
+		if err != nil {
+			fmt.Println("Query order items error:", err)
 			continue
 		}
 
-
-		itemRows, _ := db.Query(context.Background(), `
-			SELECT pr.title, s.name AS size, v.name AS variant, ti.quantity AS qty
-			FROM transaction_items ti
-			JOIN products pr ON pr.id = ti.product_id
-			LEFT JOIN sizes s ON s.id = ti.size_id
-			LEFT JOIN variants v ON v.id = ti.variant_id
-			WHERE ti.transaction_id=$1
-		`, t.ID)
-
-		var variantName *string
 		for itemRows.Next() {
 			var item TransactionItem
 			var sizeName *string
-			itemRows.Scan(&item.Title, &sizeName, &variantName, &item.Qty)
+			var variantName *string
+			var imageName string
 
-			item.Size = ""
+			if err := itemRows.Scan(&item.Title, &sizeName, &variantName, &item.Qty, &imageName); err != nil {
+				fmt.Println("Scan order item error:", err)
+				continue
+			}
+
 			if sizeName != nil {
 				item.Size = *sizeName
 			}
-			t.VariantName = variantName
+			if variantName != nil {
+				item.Variant = *variantName
+			}
+			item.Image = imageName
+
 			t.OrderItems = append(t.OrderItems, item)
 		}
 		itemRows.Close()
@@ -161,32 +188,52 @@ func GetTransactionByID(db *pgxpool.Pool, id string) (Transaction, error) {
 		return t, err
 	}
 
-	itemRows, _ := db.Query(context.Background(), `
-		SELECT pr.title, s.name AS size, v.name AS variant, ti.quantity AS qty
+	itemRows, err := db.Query(context.Background(), `
+		SELECT 
+			pr.title, 
+			s.name AS size, 
+			v.name AS variant, 
+			ti.quantity AS qty, 
+			COALESCE(pi.image, '') AS image
 		FROM transaction_items ti
 		JOIN products pr ON pr.id = ti.product_id
 		LEFT JOIN sizes s ON s.id = ti.size_id
 		LEFT JOIN variants v ON v.id = ti.variant_id
+		LEFT JOIN LATERAL (
+			SELECT image 
+			FROM product_images 
+			WHERE product_id = pr.id
+			ORDER BY id ASC
+			LIMIT 1
+		) pi ON true
 		WHERE ti.transaction_id=$1
 	`, t.ID)
+	if err != nil {
+		return t, err
+	}
+	defer itemRows.Close()
 
-	var variantName *string
 	for itemRows.Next() {
 		var item TransactionItem
 		var sizeName *string
+		var variantName *string
+		var imageName string
 
-		itemRows.Scan(&item.Title, &sizeName, &variantName, &item.Qty)
+		if err := itemRows.Scan(&item.Title, &sizeName, &variantName, &item.Qty, &imageName); err != nil {
+			fmt.Println("Scan order item error:", err)
+			continue
+		}
 
-		item.Size = ""
 		if sizeName != nil {
 			item.Size = *sizeName
 		}
-
-		t.VariantName = variantName
+		if variantName != nil {
+			item.Variant = *variantName
+		}
+		item.Image = imageName
 
 		t.OrderItems = append(t.OrderItems, item)
 	}
-	itemRows.Close()
 
 	return t, nil
 }
@@ -272,8 +319,6 @@ func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month
 	return histories, total, nil
 }
 
-
-
 type HistoryDetail struct {
 	ID             int64                   `json:"id"`
 	InvoiceNumber  string                  `json:"invoice"`
@@ -298,18 +343,18 @@ type TransactionItemDetail struct {
 	DiscountPrice float64 `json:"discountPrice"`
 	Variant       *string `json:"variant,omitempty"`
 	Quantity      int     `json:"quantity"`
-	Subtotal      float64 `json:"subtotal"` 
+	Subtotal      float64 `json:"subtotal"`
 }
 
 type ShippingMethod struct {
-    ID   int64  `json:"id"`
-    Name string `json:"name"`
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
 }
 
 type PaymentMethod struct {
-    ID    int64  `json:"id"`
-    Name  string `json:"name"`
-    Image string `json:"image"`
+	ID    int64  `json:"id"`
+	Name  string `json:"name"`
+	Image string `json:"image"`
 }
 
 func GetHistoryDetail(db *pgxpool.Pool, transactionID, userID int64) (*HistoryDetail, error) {
