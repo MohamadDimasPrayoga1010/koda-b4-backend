@@ -473,69 +473,118 @@ func (pc *ProductController) DeleteProduct(ctx *gin.Context) {
 		}
 	}()
 
-	childTables := []string{
-		"product_variants",
-		"product_sizes",
-		"product_images",
-		"products_categories",
-		"carts",
-		"recommended_products",
+	_, err = tx.Exec(ctxDB, `DELETE FROM transaction_items WHERE product_id=$1`, id)
+	if err != nil {
+		tx.Rollback(ctxDB)
+		ctx.JSON(500, gin.H{
+			"success": false,
+			"message": "Failed to delete transaction items",
+			"data":    err.Error(),
+		})
+		return
 	}
 
-	for _, table := range childTables {
-		var query string
-		if table == "recommended_products" {
-			query = fmt.Sprintf("DELETE FROM %s WHERE product_id=$1 OR recommended_id=$1", table)
-		} else {
-			query = fmt.Sprintf("DELETE FROM %s WHERE product_id=$1", table)
-		}
+	_, err = tx.Exec(ctxDB, `DELETE FROM product_images WHERE product_id=$1`, id)
+	if err != nil {
+		tx.Rollback(ctxDB)
+		ctx.JSON(500, gin.H{
+			"success": false,
+			"message": "Failed to delete product images",
+			"data":    err.Error(),
+		})
+		return
+	}
 
-		_, err := tx.Exec(ctxDB, query, id)
-		if err != nil {
-			tx.Rollback(ctxDB)
-			ctx.JSON(500, models.Response{
-				Success: false,
-				Message: fmt.Sprintf("Failed to delete from %s", table),
-				Data:    err.Error(),
-			})
-			return
-		}
+	_, err = tx.Exec(ctxDB, `DELETE FROM product_variants WHERE product_id=$1`, id)
+	if err != nil {
+		tx.Rollback(ctxDB)
+		ctx.JSON(500, gin.H{
+			"success": false,
+			"message": "Failed to delete product variants",
+			"data":    err.Error(),
+		})
+		return
+	}
+
+	_, err = tx.Exec(ctxDB, `DELETE FROM product_sizes WHERE product_id=$1`, id)
+	if err != nil {
+		tx.Rollback(ctxDB)
+		ctx.JSON(500, gin.H{
+			"success": false,
+			"message": "Failed to delete product sizes",
+			"data":    err.Error(),
+		})
+		return
+	}
+
+	_, err = tx.Exec(ctxDB, `DELETE FROM products_categories WHERE product_id=$1`, id)
+	if err != nil {
+		tx.Rollback(ctxDB)
+		ctx.JSON(500, gin.H{
+			"success": false,
+			"message": "Failed to delete product categories",
+			"data":    err.Error(),
+		})
+		return
+	}
+
+	_, err = tx.Exec(ctxDB, `DELETE FROM carts WHERE product_id=$1`, id)
+	if err != nil {
+		tx.Rollback(ctxDB)
+		ctx.JSON(500, gin.H{
+			"success": false,
+			"message": "Failed to delete carts",
+			"data":    err.Error(),
+		})
+		return
+	}
+
+	_, err = tx.Exec(ctxDB, `DELETE FROM recommended_products WHERE product_id=$1 OR recommended_id=$1`, id)
+	if err != nil {
+		tx.Rollback(ctxDB)
+		ctx.JSON(500, gin.H{
+			"success": false,
+			"message": "Failed to delete recommended products",
+			"data":    err.Error(),
+		})
+		return
 	}
 
 	result, err := tx.Exec(ctxDB, `DELETE FROM products WHERE id=$1`, id)
 	if err != nil {
 		tx.Rollback(ctxDB)
-		ctx.JSON(500, models.Response{
-			Success: false,
-			Message: "Failed to delete product",
-			Data:    err.Error(),
+		ctx.JSON(500, gin.H{
+			"success": false,
+			"message": "Failed to delete product",
+			"data":    err.Error(),
 		})
 		return
 	}
 
 	if result.RowsAffected() == 0 {
 		tx.Rollback(ctxDB)
-		ctx.JSON(404, models.Response{
-			Success: false,
-			Message: "Product not found",
+		ctx.JSON(404, gin.H{
+			"success": false,
+			"message": "Product not found",
 		})
 		return
 	}
 
 	if err := tx.Commit(ctxDB); err != nil {
-		ctx.JSON(500, models.Response{
-			Success: false,
-			Message: "Failed to commit transaction",
-			Data:    err.Error(),
+		ctx.JSON(500, gin.H{
+			"success": false,
+			"message": "Failed to commit transaction",
+			"data":    err.Error(),
 		})
 		return
 	}
 
-	ctx.JSON(200, models.Response{
-		Success: true,
-		Message: "Product deleted successfully",
+	ctx.JSON(200, gin.H{
+		"success": true,
+		"message": "Product deleted successfully",
 	})
 }
+
 
 // GetProductImages godoc
 // @Summary Get all images of a product
