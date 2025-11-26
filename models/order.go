@@ -244,6 +244,8 @@ type HistoryTransaction struct {
 	Total         float64   `json:"total"`
 	Status        string    `json:"status"`
 	CreatedAt     time.Time `json:"createdAt"`
+	ShippingName  string    `json:"shippingName"`  
+	ShippingFee   float64   `json:"shippingFee"`
 }
 
 func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month, page, limit int) ([]HistoryTransaction, int, error) {
@@ -275,8 +277,11 @@ func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month
 		t.total,
 		t.status,
 		t.created_at,
+		COALESCE(s.name, '') AS shipping_name,
+		COALESCE(s.additional_price, 0) AS shipping_fee,
 		COALESCE(MAX(pi.image), '') AS image
 	FROM transactions t
+	LEFT JOIN shippings s ON s.id = t.shipping_id
 	LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
 	LEFT JOIN products p ON p.id = ti.product_id
 	LEFT JOIN product_images pi ON pi.product_id = p.id
@@ -294,7 +299,7 @@ func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month
 	}
 
 	query += `
-	GROUP BY t.id
+	GROUP BY t.id, s.name, s.additional_price
 	ORDER BY t.created_at DESC
 	LIMIT $` + strconv.Itoa(len(params)+1) + " OFFSET $" + strconv.Itoa(len(params)+2)
 	params = append(params, limit, offset)
@@ -308,7 +313,7 @@ func GetHistoryTransactions(db *pgxpool.Pool, userID int64, status string, month
 	var histories []HistoryTransaction
 	for rows.Next() {
 		var h HistoryTransaction
-		if err := rows.Scan(&h.ID, &h.InvoiceNumber, &h.Total, &h.Status, &h.CreatedAt, &h.Image); err != nil {
+		if err := rows.Scan(&h.ID, &h.InvoiceNumber, &h.Total, &h.Status, &h.CreatedAt, &h.ShippingName, &h.ShippingFee, &h.Image); err != nil {
 			continue
 		}
 		histories = append(histories, h)
