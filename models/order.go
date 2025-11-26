@@ -97,7 +97,7 @@ func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, off
 			fmt.Println("Scan transaction error:", err)
 			continue
 		}
-		
+
 		itemRows, err := db.Query(context.Background(), `
             SELECT 
                 pr.title, 
@@ -151,7 +151,6 @@ func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, off
 
 	return transactions, nil
 }
-
 
 func GetTransactionByID(db *pgxpool.Pool, id string) (Transaction, error) {
 	var t Transaction
@@ -237,7 +236,6 @@ func GetTransactionByID(db *pgxpool.Pool, id string) (Transaction, error) {
 
 	return t, nil
 }
-
 
 type HistoryTransaction struct {
 	ID            int64     `json:"id"`
@@ -331,6 +329,7 @@ type HistoryDetail struct {
 	Status         string                  `json:"status"`
 	Total          float64                 `json:"total"`
 	CreatedAt      string                  `json:"createdAt"`
+	ShippingPrice  float64                 `json:"shippingPrice"`
 	Items          []TransactionItemDetail `json:"items"`
 }
 
@@ -418,6 +417,13 @@ func GetHistoryDetail(db *pgxpool.Pool, transactionID, userID int64) (*HistoryDe
 	if err != nil {
 		return nil, err
 	}
+	shippingPrice := 0.0
+	if header.DeliveryMethod == "DoorDelivery" {
+		shippingPrice = 10000
+	}
+
+	header.ShippingPrice = shippingPrice
+	header.Total += shippingPrice
 
 	defer rows.Close()
 
