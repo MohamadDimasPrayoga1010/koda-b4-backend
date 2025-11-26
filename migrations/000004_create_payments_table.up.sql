@@ -11,6 +11,9 @@ CREATE TABLE shippings (
     name VARCHAR(50) UNIQUE
 );
 
+ALTER TABLE shippings
+ADD COLUMN additional_price INT DEFAULT 0;
+
 CREATE TABLE status (
     id SERIAL PRIMARY KEY,
     name VARCHAR(20) NOT NULL UNIQUE

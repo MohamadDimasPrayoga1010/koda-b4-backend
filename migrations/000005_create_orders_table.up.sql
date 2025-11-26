@@ -44,6 +44,14 @@ CREATE TABLE transactions (
     FOREIGN KEY (shipping_id) REFERENCES shippings(id)
 );
 
+ALTER TABLE transactions
+DROP CONSTRAINT transactions_user_id_fkey;
+
+ALTER TABLE transactions
+ADD CONSTRAINT transactions_user_id_fkey
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+
+
 CREATE TABLE transaction_items (
     id SERIAL PRIMARY KEY,
     transaction_id INT NOT NULL,

@@ -1,9 +1,3 @@
-INSERT INTO users (fullname, email, password, role) VALUES
-('admin', 'admin123@gmail.com', '$argon2id$v=19$m=65536,t=3,p=4$TSmPh0THL6mxMjc9qIKhRA$VlfimwE1xaloEhZnWli29Hxff9fB/JvDv/jvBAF3+WE', 'admin')
-
-INSERT INTO profile (image, phone, address) VALUES
-('image.png', '08123456789', 'jakarta')
-
 INSERT INTO categories (name) VALUES
 ('Favorite Product'),
 ('Coffee'),
@@ -79,14 +73,63 @@ INSERT INTO products (title, description, base_price, category_id, stock, is_fav
 ('Cheese Topping', 'Add creamy cheese topping', 20000, 5, 30, FALSE),
 ('Hazelnut Syrup', 'Add hazelnut flavor syrup to your drink', 20000, 5, 50, TRUE),
 ('Chocolate Chips', 'Add chocolate chips for extra sweetness', 21000, 5, 50, FALSE);
-INSERT INTO products (title, description, base_price, product_images_id category_id, stock, is_favorite) VALUES
-('Espresso Shot', 'Strong and concentrated espresso, perfect to energize your day', 15000, 1, 40, TRUE);
 
-INSERT INTO products (title, description, base_price, category_id, stock, is_favorite) VALUES
-('coba', 'Add chocolate chips for extra sweetness', 21000, 5, 50, TRUE);
-INSERT INTO product_images (product_id, image) VALUES
-(60, 'https://images.unsplash.com/photo-1646257861487-60fa89bef25f?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTJ8fEVzcHJlc3NvJTIwU2hvdHxlbnwwfHwwfHx8MA%3D%3D&auto=format&fit=crop&q=60&w=500'),
-(60, 'https://images.unsplash.com/photo-1601390483714-955fd3066695?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8NHx8RXNwcmVzc28lMjBTaG90fGVufDB8fDB8fHww&auto=format&fit=crop&q=60&w=500');
+
+UPDATE products SET rating = 4.3 WHERE id = 1;
+UPDATE products SET rating = 4.7 WHERE id = 2;
+UPDATE products SET rating = 4.5 WHERE id = 3;
+UPDATE products SET rating = 4.2 WHERE id = 4;
+UPDATE products SET rating = 4.8 WHERE id = 5;
+UPDATE products SET rating = 4.4 WHERE id = 6;
+UPDATE products SET rating = 4.6 WHERE id = 7;
+UPDATE products SET rating = 4.9 WHERE id = 8;
+UPDATE products SET rating = 4.1 WHERE id = 9;
+UPDATE products SET rating = 4.5 WHERE id = 10;
+
+UPDATE products SET rating = 4.2 WHERE id = 11;
+UPDATE products SET rating = 4.7 WHERE id = 12;
+UPDATE products SET rating = 4.3 WHERE id = 13;
+UPDATE products SET rating = 4.6 WHERE id = 14;
+UPDATE products SET rating = 4.9 WHERE id = 15;
+UPDATE products SET rating = 4.4 WHERE id = 16;
+UPDATE products SET rating = 4.5 WHERE id = 17;
+UPDATE products SET rating = 4.8 WHERE id = 18;
+UPDATE products SET rating = 4.3 WHERE id = 19;
+UPDATE products SET rating = 4.7 WHERE id = 20;
+
+UPDATE products SET rating = 4.6 WHERE id = 21;
+UPDATE products SET rating = 4.9 WHERE id = 22;
+UPDATE products SET rating = 4.2 WHERE id = 23;
+UPDATE products SET rating = 4.5 WHERE id = 24;
+UPDATE products SET rating = 4.3 WHERE id = 25;
+UPDATE products SET rating = 4.8 WHERE id = 26;
+UPDATE products SET rating = 4.4 WHERE id = 27;
+UPDATE products SET rating = 4.7 WHERE id = 28;
+UPDATE products SET rating = 4.5 WHERE id = 29;
+UPDATE products SET rating = 4.9 WHERE id = 30;
+
+UPDATE products SET rating = 4.1 WHERE id = 31;
+UPDATE products SET rating = 4.4 WHERE id = 32;
+UPDATE products SET rating = 4.6 WHERE id = 33;
+UPDATE products SET rating = 4.3 WHERE id = 34;
+UPDATE products SET rating = 4.8 WHERE id = 35;
+UPDATE products SET rating = 4.2 WHERE id = 36;
+UPDATE products SET rating = 4.5 WHERE id = 37;
+UPDATE products SET rating = 4.7 WHERE id = 38;
+UPDATE products SET rating = 4.9 WHERE id = 39;
+UPDATE products SET rating = 4.3 WHERE id = 40;
+
+UPDATE products SET rating = 4.6 WHERE id = 41;
+UPDATE products SET rating = 4.2 WHERE id = 42;
+UPDATE products SET rating = 4.8 WHERE id = 43;
+UPDATE products SET rating = 4.5 WHERE id = 44;
+UPDATE products SET rating = 4.7 WHERE id = 45;
+UPDATE products SET rating = 4.3 WHERE id = 46;
+UPDATE products SET rating = 4.9 WHERE id = 47;
+UPDATE products SET rating = 4.4 WHERE id = 48;
+UPDATE products SET rating = 4.6 WHERE id = 49;
+UPDATE products SET rating = 4.8 WHERE id = 50;
+
 
 INSERT INTO product_images (product_id, image) VALUES
 (1, 'https://images.unsplash.com/photo-1646257861487-60fa89bef25f?ixlib=rb-4.1.0&ixid=M3wxMjA3fDB8MHxzZWFyY2h8MTJ8fEVzcHJlc3NvJTIwU2hvdHxlbnwwfHwwfHx8MA%3D%3D&auto=format&fit=crop&q=60&w=500'),
@@ -315,9 +358,6 @@ INSERT INTO product_variants (product_id, variant_id) VALUES
 (44,3),  -- Brown Sugar Boba
 (45,3);  -- Cheese Topping
 
-
-
-INSERT INTO shippings (name
 INSERT INTO product_sizes (product_id, size_id) VALUES
 (1, 1), (1, 2), (1, 3),
 (2, 1), (2, 2), (2, 3),
@@ -422,6 +462,10 @@ INSERT INTO shippings (name) VALUES
 ('DoorDelivery'),
 ('PickUp');
 
+UPDATE shippings
+SET additional_price = 10000
+WHERE name = 'DoorDelivery';
+
 INSERT INTO promos (title, description, discount, start, "end")
 VALUES
 ('Diskon Awal Bulan', 'Diskon 10% untuk semua produk', 10, '2025-11-01 00:00:00', '2025-11-30 23:59:59'),
@@ -480,4 +524,5 @@ INSERT INTO recommended_products (product_id, recommended_id) VALUES
 (50, 48), (50, 47), (50, 49), (50, 46);
 
 
-
+INSERT INTO users (fullname, email, password, role) VALUES
+('admin', 'admin@gmail.com', 'Admin123', 'admin');

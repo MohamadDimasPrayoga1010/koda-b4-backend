@@ -31,3 +31,10 @@ CREATE TABLE forgot_password(
     expires_at TIMESTAMP DEFAULT now(),
     created_at TIMESTAMP DEFAULT now()
 ); 
+
+ALTER TABLE forgot_password
+DROP CONSTRAINT forgot_password_user_id_fkey;
+
+ALTER TABLE forgot_password
+ADD CONSTRAINT forgot_password_user_id_fkey
+FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
