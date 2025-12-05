@@ -1205,12 +1205,12 @@
                 "summary": "Register a new user or admin",
                 "parameters": [
                     {
-                        "description": "Login Payload",
-                        "name": "login",
+                        "description": "Register Payload",
+                        "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.UserLogin"
+                            "$ref": "#/definitions/models.UserRegister"
                         }
                     }
                 ],
@@ -1234,7 +1234,7 @@
                         }
                     },
                     "400": {
-                        "description": "Invalid request body or password too short",
+                        "description": "Invalid request body or validation failed",
                         "schema": {
                             "$ref": "#/definitions/models.Response"
                         }
@@ -2140,13 +2140,13 @@
         "models.Cart": {
             "type": "object",
             "properties": {
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "id": {
                     "type": "integer"
                 },
-                "product_id": {
+                "productId": {
                     "type": "integer"
                 },
                 "quantity": {
@@ -2155,13 +2155,13 @@
                 "size_id": {
                     "type": "integer"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 },
-                "user_id": {
+                "userId": {
                     "type": "integer"
                 },
-                "variant_id": {
+                "variantId": {
                     "type": "integer"
                 }
             }
@@ -2169,13 +2169,16 @@
         "models.CartItemResponse": {
             "type": "object",
             "properties": {
-                "base_price": {
+                "basePrice": {
                     "type": "number"
+                },
+                "id": {
+                    "type": "integer"
                 },
                 "image": {
                     "type": "string"
                 },
-                "product_id": {
+                "productId": {
                     "type": "integer"
                 },
                 "quantity": {
@@ -2220,22 +2223,22 @@
         "models.HistoryDetail": {
             "type": "object",
             "properties": {
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
-                "cust_address": {
+                "custAddress": {
                     "type": "string"
                 },
-                "cust_email": {
+                "custEmail": {
                     "type": "string"
                 },
-                "cust_name": {
+                "custName": {
                     "type": "string"
                 },
-                "cust_phone": {
+                "custPhone": {
                     "type": "string"
                 },
-                "delivery_method": {
+                "deliveryMethod": {
                     "type": "string"
                 },
                 "id": {
@@ -2250,8 +2253,11 @@
                         "$ref": "#/definitions/models.TransactionItemDetail"
                     }
                 },
-                "payment_method": {
+                "paymentMethod": {
                     "type": "string"
+                },
+                "shippingPrice": {
+                    "type": "number"
                 },
                 "status": {
                     "type": "string"
@@ -2267,7 +2273,7 @@
                 "address": {
                     "type": "string"
                 },
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "email": {
@@ -2279,7 +2285,7 @@
                 "id": {
                     "type": "integer"
                 },
-                "invoice_number": {
+                "invoiceNumber": {
                     "type": "string"
                 },
                 "items": {
@@ -2288,13 +2294,13 @@
                         "$ref": "#/definitions/models.OrderTransactionItem"
                     }
                 },
-                "payment_method_name": {
+                "paymentMethodName": {
                     "type": "string"
                 },
                 "phone": {
                     "type": "string"
                 },
-                "shipping_name": {
+                "shippingName": {
                     "type": "string"
                 },
                 "status": {
@@ -2303,10 +2309,10 @@
                 "total": {
                     "type": "number"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 },
-                "user_id": {
+                "userId": {
                     "type": "integer"
                 }
             }
@@ -2317,28 +2323,28 @@
                 "id": {
                     "type": "integer"
                 },
-                "product_id": {
+                "productId": {
                     "type": "integer"
                 },
-                "product_name": {
+                "productName": {
                     "type": "string"
                 },
                 "quantity": {
                     "type": "integer"
                 },
-                "size_id": {
+                "sizeId": {
                     "type": "integer"
                 },
-                "size_name": {
+                "sizeName": {
                     "type": "string"
                 },
                 "subtotal": {
                     "type": "number"
                 },
-                "variant_id": {
+                "variantId": {
                     "type": "integer"
                 },
-                "variant_name": {
+                "variantName": {
                     "type": "string"
                 }
             }
@@ -2355,16 +2361,16 @@
                 "fullname": {
                     "type": "string"
                 },
-                "payment_method_id": {
+                "paymentMethodId": {
                     "type": "integer"
                 },
                 "phone": {
                     "type": "string"
                 },
-                "shipping_id": {
+                "shippingId": {
                     "type": "integer"
                 },
-                "user_id": {
+                "userId": {
                     "type": "integer"
                 }
             }
@@ -2372,13 +2378,13 @@
         "models.ProductDetail": {
             "type": "object",
             "properties": {
-                "base_price": {
+                "basePrice": {
                     "type": "number"
                 },
-                "category_id": {
+                "categoryId": {
                     "type": "integer"
                 },
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "description": {
@@ -2411,7 +2417,7 @@
                 "title": {
                     "type": "string"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 },
                 "variant": {
@@ -2422,16 +2428,16 @@
         "models.ProductImage": {
             "type": "object",
             "properties": {
-                "deleted_at": {
+                "deletedAt": {
                     "type": "string"
                 },
                 "image": {
                     "type": "string"
                 },
-                "product_id": {
+                "productId": {
                     "type": "integer"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 }
             }
@@ -2439,13 +2445,13 @@
         "models.ProductResponse": {
             "type": "object",
             "properties": {
-                "base_price": {
+                "basePrice": {
                     "type": "number"
                 },
                 "category": {
                     "$ref": "#/definitions/models.CategoryProduct"
                 },
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "description": {
@@ -2460,6 +2466,9 @@
                         "$ref": "#/definitions/models.ProductImage"
                     }
                 },
+                "isFlashSale": {
+                    "type": "boolean"
+                },
                 "sizes": {
                     "type": "array",
                     "items": {
@@ -2472,7 +2481,7 @@
                 "title": {
                     "type": "string"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 },
                 "variants": {
@@ -2489,7 +2498,7 @@
                 "address": {
                     "type": "string"
                 },
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "email": {
@@ -2507,10 +2516,10 @@
                 "phone": {
                     "type": "string"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 },
-                "user_id": {
+                "userId": {
                     "type": "integer"
                 }
             }
@@ -2518,13 +2527,13 @@
         "models.RecommendedProductInfo": {
             "type": "object",
             "properties": {
-                "base_price": {
+                "basePrice": {
                     "type": "number"
                 },
-                "category_id": {
+                "categoryId": {
                     "type": "integer"
                 },
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "description": {
@@ -2551,7 +2560,7 @@
                 "title": {
                     "type": "string"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 },
                 "variant": {
@@ -2590,7 +2599,7 @@
         "models.Size": {
             "type": "object",
             "properties": {
-                "additional_price": {
+                "additionalPrice": {
                     "type": "number"
                 },
                 "id": {
@@ -2604,10 +2613,10 @@
         "models.TransactionItemDetail": {
             "type": "object",
             "properties": {
-                "base_price": {
+                "basePrice": {
                     "type": "number"
                 },
-                "discount_price": {
+                "discountPrice": {
                     "type": "number"
                 },
                 "id": {
@@ -2648,10 +2657,33 @@
                 }
             }
         },
+        "models.UserRegister": {
+            "type": "object",
+            "required": [
+                "email",
+                "fullname",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "fullname": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "minLength": 6
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
         "models.UserResponse": {
             "type": "object",
             "properties": {
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "email": {
@@ -2669,7 +2701,7 @@
                 "token": {
                     "type": "string"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 }
             }
@@ -2677,7 +2709,7 @@
         "models.Variant": {
             "type": "object",
             "properties": {
-                "additional_price": {
+                "additionalPrice": {
                     "type": "integer"
                 },
                 "id": {

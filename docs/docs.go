@@ -1208,12 +1208,12 @@ const docTemplate = `{
                 "summary": "Register a new user or admin",
                 "parameters": [
                     {
-                        "description": "Login Payload",
-                        "name": "login",
+                        "description": "Register Payload",
+                        "name": "body",
                         "in": "body",
                         "required": true,
                         "schema": {
-                            "$ref": "#/definitions/models.UserLogin"
+                            "$ref": "#/definitions/models.UserRegister"
                         }
                     }
                 ],
@@ -1237,7 +1237,7 @@ const docTemplate = `{
                         }
                     },
                     "400": {
-                        "description": "Invalid request body or password too short",
+                        "description": "Invalid request body or validation failed",
                         "schema": {
                             "$ref": "#/definitions/models.Response"
                         }
@@ -2143,13 +2143,13 @@ const docTemplate = `{
         "models.Cart": {
             "type": "object",
             "properties": {
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "id": {
                     "type": "integer"
                 },
-                "product_id": {
+                "productId": {
                     "type": "integer"
                 },
                 "quantity": {
@@ -2158,13 +2158,13 @@ const docTemplate = `{
                 "size_id": {
                     "type": "integer"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 },
-                "user_id": {
+                "userId": {
                     "type": "integer"
                 },
-                "variant_id": {
+                "variantId": {
                     "type": "integer"
                 }
             }
@@ -2172,13 +2172,16 @@ const docTemplate = `{
         "models.CartItemResponse": {
             "type": "object",
             "properties": {
-                "base_price": {
+                "basePrice": {
                     "type": "number"
+                },
+                "id": {
+                    "type": "integer"
                 },
                 "image": {
                     "type": "string"
                 },
-                "product_id": {
+                "productId": {
                     "type": "integer"
                 },
                 "quantity": {
@@ -2223,22 +2226,22 @@ const docTemplate = `{
         "models.HistoryDetail": {
             "type": "object",
             "properties": {
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
-                "cust_address": {
+                "custAddress": {
                     "type": "string"
                 },
-                "cust_email": {
+                "custEmail": {
                     "type": "string"
                 },
-                "cust_name": {
+                "custName": {
                     "type": "string"
                 },
-                "cust_phone": {
+                "custPhone": {
                     "type": "string"
                 },
-                "delivery_method": {
+                "deliveryMethod": {
                     "type": "string"
                 },
                 "id": {
@@ -2253,8 +2256,11 @@ const docTemplate = `{
                         "$ref": "#/definitions/models.TransactionItemDetail"
                     }
                 },
-                "payment_method": {
+                "paymentMethod": {
                     "type": "string"
+                },
+                "shippingPrice": {
+                    "type": "number"
                 },
                 "status": {
                     "type": "string"
@@ -2270,7 +2276,7 @@ const docTemplate = `{
                 "address": {
                     "type": "string"
                 },
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "email": {
@@ -2282,7 +2288,7 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
-                "invoice_number": {
+                "invoiceNumber": {
                     "type": "string"
                 },
                 "items": {
@@ -2291,13 +2297,13 @@ const docTemplate = `{
                         "$ref": "#/definitions/models.OrderTransactionItem"
                     }
                 },
-                "payment_method_name": {
+                "paymentMethodName": {
                     "type": "string"
                 },
                 "phone": {
                     "type": "string"
                 },
-                "shipping_name": {
+                "shippingName": {
                     "type": "string"
                 },
                 "status": {
@@ -2306,10 +2312,10 @@ const docTemplate = `{
                 "total": {
                     "type": "number"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 },
-                "user_id": {
+                "userId": {
                     "type": "integer"
                 }
             }
@@ -2320,28 +2326,28 @@ const docTemplate = `{
                 "id": {
                     "type": "integer"
                 },
-                "product_id": {
+                "productId": {
                     "type": "integer"
                 },
-                "product_name": {
+                "productName": {
                     "type": "string"
                 },
                 "quantity": {
                     "type": "integer"
                 },
-                "size_id": {
+                "sizeId": {
                     "type": "integer"
                 },
-                "size_name": {
+                "sizeName": {
                     "type": "string"
                 },
                 "subtotal": {
                     "type": "number"
                 },
-                "variant_id": {
+                "variantId": {
                     "type": "integer"
                 },
-                "variant_name": {
+                "variantName": {
                     "type": "string"
                 }
             }
@@ -2358,16 +2364,16 @@ const docTemplate = `{
                 "fullname": {
                     "type": "string"
                 },
-                "payment_method_id": {
+                "paymentMethodId": {
                     "type": "integer"
                 },
                 "phone": {
                     "type": "string"
                 },
-                "shipping_id": {
+                "shippingId": {
                     "type": "integer"
                 },
-                "user_id": {
+                "userId": {
                     "type": "integer"
                 }
             }
@@ -2375,13 +2381,13 @@ const docTemplate = `{
         "models.ProductDetail": {
             "type": "object",
             "properties": {
-                "base_price": {
+                "basePrice": {
                     "type": "number"
                 },
-                "category_id": {
+                "categoryId": {
                     "type": "integer"
                 },
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "description": {
@@ -2414,7 +2420,7 @@ const docTemplate = `{
                 "title": {
                     "type": "string"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 },
                 "variant": {
@@ -2425,16 +2431,16 @@ const docTemplate = `{
         "models.ProductImage": {
             "type": "object",
             "properties": {
-                "deleted_at": {
+                "deletedAt": {
                     "type": "string"
                 },
                 "image": {
                     "type": "string"
                 },
-                "product_id": {
+                "productId": {
                     "type": "integer"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 }
             }
@@ -2442,13 +2448,13 @@ const docTemplate = `{
         "models.ProductResponse": {
             "type": "object",
             "properties": {
-                "base_price": {
+                "basePrice": {
                     "type": "number"
                 },
                 "category": {
                     "$ref": "#/definitions/models.CategoryProduct"
                 },
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "description": {
@@ -2463,6 +2469,9 @@ const docTemplate = `{
                         "$ref": "#/definitions/models.ProductImage"
                     }
                 },
+                "isFlashSale": {
+                    "type": "boolean"
+                },
                 "sizes": {
                     "type": "array",
                     "items": {
@@ -2475,7 +2484,7 @@ const docTemplate = `{
                 "title": {
                     "type": "string"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 },
                 "variants": {
@@ -2492,7 +2501,7 @@ const docTemplate = `{
                 "address": {
                     "type": "string"
                 },
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "email": {
@@ -2510,10 +2519,10 @@ const docTemplate = `{
                 "phone": {
                     "type": "string"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 },
-                "user_id": {
+                "userId": {
                     "type": "integer"
                 }
             }
@@ -2521,13 +2530,13 @@ const docTemplate = `{
         "models.RecommendedProductInfo": {
             "type": "object",
             "properties": {
-                "base_price": {
+                "basePrice": {
                     "type": "number"
                 },
-                "category_id": {
+                "categoryId": {
                     "type": "integer"
                 },
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "description": {
@@ -2554,7 +2563,7 @@ const docTemplate = `{
                 "title": {
                     "type": "string"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 },
                 "variant": {
@@ -2593,7 +2602,7 @@ const docTemplate = `{
         "models.Size": {
             "type": "object",
             "properties": {
-                "additional_price": {
+                "additionalPrice": {
                     "type": "number"
                 },
                 "id": {
@@ -2607,10 +2616,10 @@ const docTemplate = `{
         "models.TransactionItemDetail": {
             "type": "object",
             "properties": {
-                "base_price": {
+                "basePrice": {
                     "type": "number"
                 },
-                "discount_price": {
+                "discountPrice": {
                     "type": "number"
                 },
                 "id": {
@@ -2651,10 +2660,33 @@ const docTemplate = `{
                 }
             }
         },
+        "models.UserRegister": {
+            "type": "object",
+            "required": [
+                "email",
+                "fullname",
+                "password"
+            ],
+            "properties": {
+                "email": {
+                    "type": "string"
+                },
+                "fullname": {
+                    "type": "string"
+                },
+                "password": {
+                    "type": "string",
+                    "minLength": 6
+                },
+                "role": {
+                    "type": "string"
+                }
+            }
+        },
         "models.UserResponse": {
             "type": "object",
             "properties": {
-                "created_at": {
+                "createdAt": {
                     "type": "string"
                 },
                 "email": {
@@ -2672,7 +2704,7 @@ const docTemplate = `{
                 "token": {
                     "type": "string"
                 },
-                "updated_at": {
+                "updatedAt": {
                     "type": "string"
                 }
             }
@@ -2680,7 +2712,7 @@ const docTemplate = `{
         "models.Variant": {
             "type": "object",
             "properties": {
-                "additional_price": {
+                "additionalPrice": {
                     "type": "integer"
                 },
                 "id": {
