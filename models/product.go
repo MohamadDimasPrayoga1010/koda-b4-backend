@@ -90,9 +90,9 @@ type ProductRequest struct {
 	Description string  `form:"description" validate:"required,min=10"`
 	BasePrice   float64 `form:"basePrice" validate:"required,gt=0"`
 	Stock       int     `form:"stock" validate:"required,gte=0"`
-	CategoryID  int64   `form:"categoryId" validate:"required,gt=0"`
-	VariantID   []int64 `form:"variantId" validate:"omitempty,dive,gt=0"`
-	Sizes       []int64 `form:"sizes" validate:"omitempty,dive,gt=0"`
+	CategoryID  int64   `form:"categoryId"`
+	VariantID   []int64 `form:"variantId"`
+	Sizes       []int64 `form:"sizes"`
 	Images []*multipart.FileHeader `form:"images" validate:"required,min=1"`
 }
 
