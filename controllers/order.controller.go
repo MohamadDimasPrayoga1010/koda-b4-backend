@@ -77,7 +77,6 @@ func (tc *TransactionController) GetTransactions(ctx *gin.Context) {
 
 	pagination, links := libs.BuildHateoasGlobal("/transactions", page, limit, total, ctx.Request.URL.Query())
 
-	// Response menggunakan struct mirip ProductListResponse
 	response := models.ProductListResponse{
 		Success:    true,
 		Message:    "Transactions fetched successfully",
