@@ -86,14 +86,14 @@ type Variant struct {
 }
 
 type ProductRequest struct {
-	Title       string  `form:"title" validate:"required"`
-	Description string  `form:"description" validate:"required,min=10"`
-	BasePrice   float64 `form:"basePrice" validate:"required,gt=0"`
-	Stock       int     `form:"stock" validate:"required,gte=0"`
-	CategoryID  int64   `form:"categoryId"`
-	VariantID   []int64 `form:"variantId"`
-	Sizes       []int64 `form:"sizes"`
-	Images []*multipart.FileHeader `form:"images" validate:"required,min=1"`
+	Title       string                  `form:"title" validate:"required"`
+	Description string                  `form:"description" validate:"required,min=10"`
+	BasePrice   float64                 `form:"basePrice" validate:"required,gt=0"`
+	Stock       int                     `form:"stock" validate:"required,gte=0"`
+	CategoryID  int64                   `form:"categoryId"`
+	VariantID   []int64                 `form:"variantId"`
+	Sizes       []int64                 `form:"sizes"`
+	Images      []*multipart.FileHeader `form:"images" validate:"required,min=1"`
 }
 
 type ProductFilter struct {
@@ -872,6 +872,9 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 		return nil, errors.New("cart is empty")
 	}
 
+	tax := total * 0.10
+	total = total + tax
+
 	for _, item := range items {
 		var currentStock int
 		err := tx.QueryRow(ctx, `SELECT stock FROM products WHERE id=$1 FOR UPDATE`, item.ProductID).Scan(&currentStock)
@@ -892,10 +895,21 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 	if err != nil {
 		return nil, errors.New("invalid payment method")
 	}
+
 	err = tx.QueryRow(ctx, `SELECT name FROM shippings WHERE id=$1`, req.ShippingID).Scan(&shippingName)
 	if err != nil {
 		return nil, errors.New("invalid shipping method")
 	}
+
+	var shippingPrice float64
+	err = tx.QueryRow(ctx, `SELECT additional_price FROM shippings WHERE id=$1`, req.ShippingID).Scan(&shippingPrice)
+	if err != nil {
+		return nil, errors.New("failed to get shipping price")
+	}
+
+	total = total + shippingPrice
+
+
 
 	invoice := "INV-" + time.Now().Format("20060102150405") + "-" + strconv.FormatInt(req.UserID, 10)
 
@@ -952,6 +966,7 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 
 	return order, nil
 }
+
 
 type ProductTypeResponse struct {
 	Sizes    []Size    `json:"sizes"`

@@ -48,23 +48,23 @@ func GetAllTransactions(db *pgxpool.Pool, search, sort, order string, limit, off
 
 	query := `
         SELECT 
-            t.id,
-            t.invoice_number AS no_orders,
-            t.created_at,
-            t.status AS status_name,
-            u.fullname AS user_fullname,
-            t.address AS user_address,
-            t.phone AS user_phone,
-            pm.name AS payment_method,
-            sh.name AS shipping_name,
-            COALESCE(SUM(pr.base_price * ti.quantity), 0) AS total
-        FROM transactions t
-        LEFT JOIN users u ON u.id = t.user_id
-        LEFT JOIN payment_methods pm ON pm.id = t.payment_method_id
-        LEFT JOIN shippings sh ON sh.id = t.shipping_id
-        LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
-        LEFT JOIN products pr ON pr.id = ti.product_id
-        WHERE 1=1
+    t.id,
+    t.invoice_number AS no_orders,
+    t.created_at,
+    t.status AS status_name,
+    u.fullname AS user_fullname,
+    t.address AS user_address,
+    t.phone AS user_phone,
+    pm.name AS payment_method,
+    sh.name AS shipping_name,
+    t.total
+FROM transactions t
+LEFT JOIN users u ON u.id = t.user_id
+LEFT JOIN payment_methods pm ON pm.id = t.payment_method_id
+LEFT JOIN shippings sh ON sh.id = t.shipping_id
+LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
+LEFT JOIN products pr ON pr.id = ti.product_id
+WHERE 1=1
     `
 	if search != "" {
 		query += " AND (LOWER(u.fullname) LIKE LOWER($" + strconv.Itoa(argIdx) + ") OR LOWER(t.invoice_number) LIKE LOWER($" + strconv.Itoa(argIdx) + "))"
@@ -158,24 +158,23 @@ func GetTransactionByID(db *pgxpool.Pool, id string) (Transaction, error) {
 
 	query := `
 		SELECT 
-			t.id,
-			t.invoice_number AS no_orders,
-			t.created_at,
-			t.status AS status_name,
-			u.fullname AS user_fullname,
-			t.address AS user_address,
-			t.phone AS user_phone,
-			pm.name AS payment_method,
-			sh.name AS shipping_name,
-			COALESCE(SUM(pr.base_price * ti.quantity), 0) AS total
-		FROM transactions t
-		LEFT JOIN users u ON u.id = t.user_id
-		LEFT JOIN payment_methods pm ON pm.id = t.payment_method_id
-		LEFT JOIN shippings sh ON sh.id = t.shipping_id
-		LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
-		LEFT JOIN products pr ON pr.id = ti.product_id
-		WHERE t.id=$1
-		GROUP BY t.id, u.fullname, t.address, t.phone, pm.name, sh.name
+    t.id,
+    t.invoice_number AS no_orders,
+    t.created_at,
+    t.status AS status_name,
+    u.fullname AS user_fullname,
+    t.address AS user_address,
+    t.phone AS user_phone,
+    pm.name AS payment_method,
+    sh.name AS shipping_name,
+    t.total
+FROM transactions t
+LEFT JOIN users u ON u.id = t.user_id
+LEFT JOIN payment_methods pm ON pm.id = t.payment_method_id
+LEFT JOIN shippings sh ON sh.id = t.shipping_id
+LEFT JOIN transaction_items ti ON ti.transaction_id = t.id
+WHERE t.id=$1
+GROUP BY t.id, u.fullname, t.address, t.phone, pm.name, sh.name
 	`
 
 	err := db.QueryRow(context.Background(), query, id).Scan(
@@ -374,6 +373,7 @@ func GetHistoryDetail(db *pgxpool.Pool, transactionID, userID int64) (*HistoryDe
 		t.address,
 		pm.name AS payment_method,
 		s.name AS delivery_method,
+		s.additional_price AS shipping_price,
 		t.status,
 		t.total,
 		TO_CHAR(t.created_at, 'YYYY-MM-DD HH24:MI:SS') AS created_at
@@ -382,6 +382,7 @@ func GetHistoryDetail(db *pgxpool.Pool, transactionID, userID int64) (*HistoryDe
 	LEFT JOIN shippings s ON s.id = t.shipping_id
 	WHERE t.id = $1 AND t.user_id = $2
 	`
+
 	var header HistoryDetail
 	err := db.QueryRow(ctx, queryHeader, transactionID, userID).Scan(
 		&header.ID,
@@ -392,6 +393,7 @@ func GetHistoryDetail(db *pgxpool.Pool, transactionID, userID int64) (*HistoryDe
 		&header.CustAddress,
 		&header.PaymentMethod,
 		&header.DeliveryMethod,
+		&header.ShippingPrice,
 		&header.Status,
 		&header.Total,
 		&header.CreatedAt,
@@ -422,14 +424,6 @@ func GetHistoryDetail(db *pgxpool.Pool, transactionID, userID int64) (*HistoryDe
 	if err != nil {
 		return nil, err
 	}
-	shippingPrice := 0.0
-	if header.DeliveryMethod == "DoorDelivery" {
-		shippingPrice = 10000
-	}
-
-	header.ShippingPrice = shippingPrice
-	header.Total += shippingPrice
-
 	defer rows.Close()
 
 	for rows.Next() {
@@ -452,5 +446,5 @@ func GetHistoryDetail(db *pgxpool.Pool, transactionID, userID int64) (*HistoryDe
 	}
 
 	return &header, nil
-
 }
+
