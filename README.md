@@ -1,8 +1,39 @@
-# Go E-Commerce Admin API
+# Go Coffeeder Admin API
 
-API ini adalah backend untuk aplikasi e-commerce, dibangun menggunakan Go (Gin) dan PostgreSQL. Mendukung manajemen produk, user, order, dan lainnya dengan fitur CRUD, pagination, dan search.
+A backend API for the Coffeeder application built using Go (Gin Framework) and PostgreSQL. It supports product, user, order, cart, and transaction management with CRUD, pagination, search, caching, and authentication features.
+
+## Tech Stack
+
+- **Framework**: Gin Web Framework
+- **Database**: PostgreSQL dengan pgx/v5 (pgxpool)
+- **Authentication**: JWT (JSON Web Tokens)
+- **Password Hashing**: Argon2
+- **Caching**: Redis
+- **Validation**: go-playground/validator v10
+- **Email Service**: Gomail
+- **File Upload**: Cloudinary
+- **Environment Variables**: godotenv
+- **Database Migration**: golang-migrate
+- **API Documentation**: HATEOAS (Hypermedia as the Engine of Application State)
+
+## Features
+
+-  User authentication & authorization (JWT)
+-  Password reset dengan OTP email
+-  Product management (CRUD with images)
+-  Shopping cart system
+-  Transaction & order management
+-  Category management
+-  Redis caching untuk performa optimal
+-  Pagination & search functionality
+-  Role-based access control (Admin/User)
+-  Image upload ke Cloudinary
+-  Favorite products
+-  Product variants & sizes
+-  Promo management
 
 ## Preview ERD
+
 ```mermaid
 erDiagram
     users {
@@ -208,46 +239,185 @@ erDiagram
     transaction_items ||--|| sizes: "with size"
     transaction_items ||--|| variants : "with variant"
     transactions ||--o{ status : "status reference"
-
-
 ```
 
-## API ENDPOINT
+## Installation
 
-### Admin
-Method	Endpoint	        Deskripsi
-- GET	/admin/users	    List user dengan pagination dan search
-- GET /admin/users/:id      Dapatkan user berdasrkan id
-- POST	/admin/users	    Tambah user baru
-- PATCH	/admin/users/:id	Edit user
-- DELETE /admin/users/:id   Delete user
+### Prerequisites
 
-### Product Admin
-Method	Endpoint	                            Deskripsi
-- POST	/admin/products	                        Tambah produk
-- GET	/admin/products	                        List produk (pagination & search)
-- GETH	/admin/products/:id	                    produk by id
-- DELETE	/admin/products/:id	                Hapus produk
-- PATCH /admin/products/:id                     Edit product
-- GET /products/:id/images                      Image id product
-- GET /products/:id/images/:image_id            Product id images id
-- PATCH /products/:id/images/:image_id          Edit Product id images id
-- DELETE GET /products/:id/images/:image_id     Delete Product id images id
+- Go 1.25
+- PostgreSQL 
+- Redis
+- Cloudinary Account
+
+### Setup
+
+1. Clone repository:
+```bash
+git clone <repository-url>
+cd coffeeder-backend
+```
+
+2. Install dependencies:
+```bash
+go mod download
+```
+
+3. Setup environment variables (`.env`):
+```env
+# Database
+DB_HOST=localhost
+DB_PORT=5432
+DB_USER=postgres
+DB_PASSWORD=yourpassword
+DB_NAME=ecommerce_db
+
+# Redis
+REDIS_HOST=localhost:6379
+REDIS_PASSWORD=
+REDIS_DB=0
+
+# JWT
+JWT_SECRET=your-secret-key
+
+# Cloudinary
+CLOUDINARY_CLOUD_NAME=your-cloud-name
+CLOUDINARY_API_KEY=your-api-key
+CLOUDINARY_API_SECRET=your-api-secret
+
+# Email (SMTP)
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_EMAIL=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+```
+
+4. Run database migrations:
+```bash
+migrate -path db/migrations -database "postgresql://user:password@localhost:5432/dbname?sslmode=disable" up
+```
+
+5. Run the application:
+```bash
+go run main.go
+```
+
+Server akan berjalan di `http://localhost:8080`
+
+## API Endpoints
+
+### Authentication
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/auth/register` | Register user baru | - |
+| POST | `/auth/login` | Login user | - |
+| POST | `/auth/forgot-password` | Request reset password | - |
+| POST | `/auth/verify-otp` | Verify OTP code | - |
+| PATCH | `/auth/reset-password` | Reset password dengan token | - |
+
+### Admin - Users
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/admin/users` | List users (pagination & search) | Admin |
+| GET | `/admin/users/:id` | Get user by ID | Admin |
+| POST | `/admin/users` | Create new user | Admin |
+| PATCH | `/admin/users/:id` | Update user | Admin |
+| DELETE | `/admin/users/:id` | Delete user | Admin |
+
+### Admin - Products
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/admin/products` | Create product | Admin |
+| GET | `/admin/products` | List products (pagination & search) | Admin |
+| GET | `/admin/products/:id` | Get product by ID | Admin |
+| PATCH | `/admin/products/:id` | Update product | Admin |
+| DELETE | `/admin/products/:id` | Delete product | Admin |
+| GET | `/admin/products/:id/images` | Get product images | Admin |
+| GET | `/admin/products/:id/images/:image_id` | Get specific image | Admin |
+| PATCH | `/admin/products/:id/images/:image_id` | Update product image | Admin |
+| DELETE | `/admin/products/:id/images/:image_id` | Delete product image | Admin |
+| GET | `/admin/type-products` | Get product types | Admin |
+
+### Admin - Categories
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/admin/categories` | List categories | Admin |
+| GET | `/admin/categories/:id` | Get category by ID | Admin |
+| POST | `/admin/categories` | Create category | Admin |
+| PATCH | `/admin/categories/:id` | Update category | Admin |
+| DELETE | `/admin/categories/:id` | Delete category | Admin |
+
+### Admin - Transactions
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/admin/transactions` | List all transactions | Admin |
+| GET | `/admin/transactions/:id` | Get transaction detail | Admin |
+| PATCH | `/admin/transactions/:id/status` | Update transaction status | Admin |
+| DELETE | `/admin/transactions/:id` | Delete transaction | Admin |
+
+### Public - Products
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| GET | `/products` | Filter & search products | - |
+| GET | `/products/:id` | Get product detail | - |
+| GET | `/favorite-products` | Get favorite products | - |
+
+### User - Cart
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/cart` | Add item to cart | User |
+| GET | `/cart` | Get user cart | User |
+| DELETE | `/deletecart` | Remove item from cart | User |
+
+### User - Transactions
+| Method | Endpoint | Description | Auth |
+|--------|----------|-------------|------|
+| POST | `/transactions` | Create new transaction | User |
+| GET | `/history` | Get transaction history | User |
+| GET | `/history/:id` | Get transaction detail | User |
+| GET | `/shippings` | Get shipping methods | User |
+| GET | `/payment-methods` | Get payment methods | User |
+
+## Performance
+
+### Redis Caching Implementation
+
+API ini menggunakan Redis untuk caching data yang sering diakses, meningkatkan performa secara signifikan:
+
+**Sebelum Caching:**
+- Response time: ~33ms
+
+![Before Caching](images/sebelumCaching.png)
+
+**Setelah Caching:**
+- Response time: ~6ms (82% lebih cepat)
+
+![After Caching](images/sesudah.png)
 
 
-### Order Admin
-Method	Endpoint	Deskripsi
-- GET	/admin/orders	List orders
-- PATCH	/admin/orders/:id/status	Update status order
-- DELETE	/admin/orders/:id	Hapus order
+## Security Features
 
-### Preview waktu sebelum caching
-Waktu 33 ms
+- Password hashing dengan Argon2
+- JWT-based authentication
+- Role-based access control (RBAC)
+- Request validation dengan validator v10
+- OTP verification untuk password reset
+- Secure token management
 
-![img](images/sebelumCaching.png)
+## Contributing
 
-### Preview waktu sesudah caching
-Waktu 6 ms
+Contributions are welcome! Please follow these steps:
 
-![img](images/sesudah.png)
+1. Fork the repository
+2. Create your feature branch (`git checkout -b feature/AmazingFeature`)
+3. Commit your changes (`git commit -m 'Add some AmazingFeature'`)
+4. Push to the branch (`git push origin feature/AmazingFeature`)
+5. Open a Pull Request
 
+## License
+
+This project is licensed under the MIT License.
+
+## Contact
+
+For questions or support, please open an issue in the repository.
