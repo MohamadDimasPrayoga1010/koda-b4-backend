@@ -457,14 +457,14 @@ INSERT INTO status (name) VALUES
 ('OnProgress'),
 ('Waiting');
 
-INSERT INTO shippings (name) VALUES 
-('DineIn'),
-('DoorDelivery'),
-('PickUp');
+INSERT INTO shippings (name, additional_price) VALUES 
+('DineIn', 0),
+('DoorDelivery', 10000),
+('PickUp', 0);
 
-UPDATE shippings
-SET additional_price = 10000
-WHERE name = 'DoorDelivery';
+-- UPDATE shippings
+-- SET additional_price = 10000
+-- WHERE name = 'DoorDelivery';
 
 INSERT INTO promos (title, description, discount, start, "end")
 VALUES
