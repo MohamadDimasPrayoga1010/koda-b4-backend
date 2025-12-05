@@ -21,6 +21,14 @@ type ProductController struct {
 	DB *pgxpool.Pool
 }
 
+func ClearProductCache() {
+	pattern := "products:*" 
+	iter := libs.RedisClient.Scan(libs.Ctx, 0, pattern, 0).Iterator()
+	for iter.Next(libs.Ctx) {
+		libs.RedisClient.Del(libs.Ctx, iter.Val())
+	}
+}
+
 // CreateProduct godoc
 // @Summary Create a new product
 // @Description Create a new product with multiple variants, sizes, and images
@@ -159,11 +167,7 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 		return
 	}
 
-	// Clear cache Redis
-	iter := libs.RedisClient.Scan(libs.Ctx, 0, "products:*", 0).Iterator()
-	for iter.Next(libs.Ctx) {
-		libs.RedisClient.Del(libs.Ctx, iter.Val())
-	}
+	ClearProductCache()
 
 	ctx.JSON(201, models.Response{
 		Success: true,
@@ -253,7 +257,6 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 
 	ctx.JSON(http.StatusOK, response)
 }
-
 
 
 
@@ -425,6 +428,8 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 		return
 	}
 
+	ClearProductCache()
+
 	ctx.JSON(200, models.Response{
 		Success: true,
 		Message: "Product updated successfully",
@@ -578,6 +583,8 @@ func (pc *ProductController) DeleteProduct(ctx *gin.Context) {
 		})
 		return
 	}
+
+	ClearProductCache()
 
 	ctx.JSON(200, gin.H{
 		"success": true,
@@ -744,6 +751,8 @@ func (pc *ProductController) DeleteProductImage(ctx *gin.Context) {
 		return
 	}
 
+	ClearProductCache()
+
 	ctx.JSON(200, models.Response{
 		Success: true,
 		Message: "Product image deleted successfully",
@@ -788,7 +797,7 @@ func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
 		return
 	}
 
-	const maxSize = 2 * 1024 * 1024 // 2MB
+	const maxSize = 2 * 1024 * 1024 
 	if file.Size > maxSize {
 		ctx.JSON(400, models.Response{
 			Success: false,
@@ -862,7 +871,8 @@ func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
 		})
 		return
 	}
-
+		ClearProductCache()
+		
 	ctx.JSON(200, models.Response{
 		Success: true,
 		Message: "Product image updated successfully",
