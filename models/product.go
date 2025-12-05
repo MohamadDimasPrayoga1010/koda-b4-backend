@@ -86,14 +86,14 @@ type Variant struct {
 }
 
 type ProductRequest struct {
-	Title       string                  `form:"title" json:"title"`
-	Description string                  `form:"description" json:"description"`
-	BasePrice   float64                 `form:"basePrice" json:"basePrice"`
-	Stock       int                     `form:"stock" json:"stock"`
-	CategoryID  int64                   `form:"categoryId" json:"categoryId"`
-	VariantID   []int64                 `form:"variantId" json:"variantId"`
-	Sizes       []int64                 `form:"sizes" json:"sizes"`
-	Images      []*multipart.FileHeader `form:"images"`
+	Title       string  `form:"title" validate:"required"`
+	Description string  `form:"description" validate:"required,min=10"`
+	BasePrice   float64 `form:"basePrice" validate:"required,gt=0"`
+	Stock       int     `form:"stock" validate:"required,gte=0"`
+	CategoryID  int64   `form:"categoryId" validate:"required,gt=0"`
+	VariantID   []int64 `form:"variantId" validate:"omitempty,dive,gt=0"`
+	Sizes       []int64 `form:"sizes" validate:"omitempty,dive,gt=0"`
+	Images []*multipart.FileHeader `form:"images" validate:"required,min=1"`
 }
 
 type ProductFilter struct {
@@ -284,76 +284,73 @@ func GetProducts(db *pgxpool.Pool, page, limit int, search, sortBy, order string
 
 	var products []ProductResponse
 
-for rows.Next() {
-	var p ProductResponse
-	var categoryName string
-	var isFlashSale bool
+	for rows.Next() {
+		var p ProductResponse
+		var categoryName string
+		var isFlashSale bool
 
-	err := rows.Scan(
-		&p.ID,
-		&p.Title,
-		&p.Description,
-		&p.BasePrice,
-		&p.Stock,
-		&p.Category.ID,
-		&categoryName,
-		&isFlashSale,
-		&p.CreatedAt,
-		&p.UpdatedAt,
-	)
+		err := rows.Scan(
+			&p.ID,
+			&p.Title,
+			&p.Description,
+			&p.BasePrice,
+			&p.Stock,
+			&p.Category.ID,
+			&categoryName,
+			&isFlashSale,
+			&p.CreatedAt,
+			&p.UpdatedAt,
+		)
 
-	if err != nil {
-		log.Println("SCAN ERROR:", err)
-		continue
-	}
+		if err != nil {
+			log.Println("SCAN ERROR:", err)
+			continue
+		}
 
-	p.Category.Name = categoryName
-	p.IsFlashSale = isFlashSale
+		p.Category.Name = categoryName
+		p.IsFlashSale = isFlashSale
 
-	variantRows, _ := db.Query(ctx,
-		`SELECT v.id, v.name, v.additional_price 
+		variantRows, _ := db.Query(ctx,
+			`SELECT v.id, v.name, v.additional_price 
 		 FROM variants v
 		 JOIN product_variants pv ON pv.variant_id = v.id
 		 WHERE pv.product_id = $1`, p.ID)
-	for variantRows.Next() {
-		var v Variant
-		variantRows.Scan(&v.ID, &v.Name, &v.AdditionalPrice)
-		p.Variants = append(p.Variants, v)
-	}
-	variantRows.Close()
+		for variantRows.Next() {
+			var v Variant
+			variantRows.Scan(&v.ID, &v.Name, &v.AdditionalPrice)
+			p.Variants = append(p.Variants, v)
+		}
+		variantRows.Close()
 
-
-	sizeRows, _ := db.Query(ctx,
-		`SELECT s.id, s.name, s.additional_price
+		sizeRows, _ := db.Query(ctx,
+			`SELECT s.id, s.name, s.additional_price
 		 FROM sizes s
 		 JOIN product_sizes ps ON ps.size_id = s.id
 		 WHERE ps.product_id = $1`, p.ID)
-	for sizeRows.Next() {
-		var s Size
-		sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice)
-		p.Sizes = append(p.Sizes, s)
-	}
-	sizeRows.Close()
+		for sizeRows.Next() {
+			var s Size
+			sizeRows.Scan(&s.ID, &s.Name, &s.AdditionalPrice)
+			p.Sizes = append(p.Sizes, s)
+		}
+		sizeRows.Close()
 
-	imageRows, _ := db.Query(ctx,
-		`SELECT image, updated_at
+		imageRows, _ := db.Query(ctx,
+			`SELECT image, updated_at
 		 FROM product_images
 		 WHERE product_id = $1`, p.ID)
-	for imageRows.Next() {
-		var img ProductImage
-		img.ProductID = p.ID
-		imageRows.Scan(&img.Image, &img.UpdatedAt)
-		p.Images = append(p.Images, img)
+		for imageRows.Next() {
+			var img ProductImage
+			img.ProductID = p.ID
+			imageRows.Scan(&img.Image, &img.UpdatedAt)
+			p.Images = append(p.Images, img)
+		}
+		imageRows.Close()
+
+		products = append(products, p)
 	}
-	imageRows.Close()
-
-	products = append(products, p)
-}
-
 
 	return products, total, nil
 }
-
 
 func GetProductByID(db *pgxpool.Pool, productID int64) (ProductResponse, error) {
 	ctx := context.Background()
@@ -956,45 +953,43 @@ func CreateOrderTransaction(db *pgxpool.Pool, req OrderTransactionRequest) (*Ord
 	return order, nil
 }
 
-
 type ProductTypeResponse struct {
-    Sizes      []Size           `json:"sizes"`
-    Variants   []Variant        `json:"variants"`
+	Sizes    []Size    `json:"sizes"`
+	Variants []Variant `json:"variants"`
 }
 
 func GetAllSizes(db *pgxpool.Pool) ([]Size, error) {
-    ctx := context.Background()
-    rows, err := db.Query(ctx, `SELECT id, name, additional_price FROM sizes`)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	ctx := context.Background()
+	rows, err := db.Query(ctx, `SELECT id, name, additional_price FROM sizes`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    var sizes []Size
-    for rows.Next() {
-        var s Size
-        if err := rows.Scan(&s.ID, &s.Name, &s.AdditionalPrice); err == nil {
-            sizes = append(sizes, s)
-        }
-    }
-    return sizes, nil
+	var sizes []Size
+	for rows.Next() {
+		var s Size
+		if err := rows.Scan(&s.ID, &s.Name, &s.AdditionalPrice); err == nil {
+			sizes = append(sizes, s)
+		}
+	}
+	return sizes, nil
 }
 
 func GetAllVariants(db *pgxpool.Pool) ([]Variant, error) {
-    ctx := context.Background()
-    rows, err := db.Query(ctx, `SELECT id, name, additional_price FROM variants`)
-    if err != nil {
-        return nil, err
-    }
-    defer rows.Close()
+	ctx := context.Background()
+	rows, err := db.Query(ctx, `SELECT id, name, additional_price FROM variants`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
 
-    var variants []Variant
-    for rows.Next() {
-        var v Variant
-        if err := rows.Scan(&v.ID, &v.Name, &v.AdditionalPrice); err == nil {
-            variants = append(variants, v)
-        }
-    }
-    return variants, nil
+	var variants []Variant
+	for rows.Next() {
+		var v Variant
+		if err := rows.Scan(&v.ID, &v.Name, &v.AdditionalPrice); err == nil {
+			variants = append(variants, v)
+		}
+	}
+	return variants, nil
 }
-

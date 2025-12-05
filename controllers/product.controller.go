@@ -22,7 +22,7 @@ type ProductController struct {
 }
 
 func ClearProductCache() {
-	pattern := "products:*" 
+	pattern := "products:*"
 	iter := libs.RedisClient.Scan(libs.Ctx, 0, pattern, 0).Iterator()
 	for iter.Next(libs.Ctx) {
 		libs.RedisClient.Del(libs.Ctx, iter.Val())
@@ -55,6 +55,15 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 			Success: false,
 			Message: "Invalid form-data",
 			Data:    err.Error(),
+		})
+		return
+	}
+
+	if err := libs.Validate.Struct(req); err != nil {
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Validation failed",
+			Data:    libs.FormatProductValidationError(err),
 		})
 		return
 	}
@@ -176,7 +185,6 @@ func (pc *ProductController) CreateProduct(ctx *gin.Context) {
 	})
 }
 
-
 // GetProduct godoc
 // @Summary Get list of products
 // @Description Get paginated products list with search, sorting, and filtering options. Includes images, sizes, and variants.
@@ -258,8 +266,6 @@ func (pc *ProductController) GetProducts(ctx *gin.Context) {
 	ctx.JSON(http.StatusOK, response)
 }
 
-
-
 // GetProductByID godoc
 // @Summary Get a product by ID
 // @Description Get detailed information of a product, including its variants, sizes, and images.
@@ -339,6 +345,26 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 			Data:    err.Error(),
 		})
 		return
+	}
+
+	if ctx.PostForm("basePrice") != "" {
+		if req.BasePrice < 1 {
+			ctx.JSON(400, models.Response{
+				Success: false,
+				Message: "Base price minimal 1",
+			})
+			return
+		}
+	}
+
+	if ctx.PostForm("stock") != "" {
+		if req.Stock < 1 {
+			ctx.JSON(400, models.Response{
+				Success: false,
+				Message: "Stock minimal 1",
+			})
+			return
+		}
 	}
 
 	productOld, err := models.GetProductByID(pc.DB, productID)
@@ -436,7 +462,6 @@ func (pc *ProductController) UpdateProduct(ctx *gin.Context) {
 		Data:    product,
 	})
 }
-
 
 // DeleteProduct godoc
 // @Summary Delete a product
@@ -592,7 +617,6 @@ func (pc *ProductController) DeleteProduct(ctx *gin.Context) {
 	})
 }
 
-
 // GetProductImages godoc
 // @Summary Get all images of a product
 // @Description Mengambil semua gambar dari product berdasarkan product ID
@@ -705,7 +729,6 @@ func (pc *ProductController) GetProductImageByID(ctx *gin.Context) {
 	})
 }
 
-
 // DeleteProductImage godoc
 // @Summary Delete a product image
 // @Description Menghapus gambar product berdasarkan product ID dan image ID
@@ -759,7 +782,6 @@ func (pc *ProductController) DeleteProductImage(ctx *gin.Context) {
 	})
 }
 
-
 // UpdateProductImage godoc
 // @Summary Update a product image
 // @Description Mengupdate / mengganti file gambar product berdasarkan product ID dan image ID
@@ -797,7 +819,7 @@ func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
 		return
 	}
 
-	const maxSize = 2 * 1024 * 1024 
+	const maxSize = 2 * 1024 * 1024
 	if file.Size > maxSize {
 		ctx.JSON(400, models.Response{
 			Success: false,
@@ -819,7 +841,6 @@ func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
 		})
 		return
 	}
-
 
 	useCloudinary := os.Getenv("CLOUDINARY_API_KEY") != ""
 	var finalFilename string
@@ -871,8 +892,8 @@ func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
 		})
 		return
 	}
-		ClearProductCache()
-		
+	ClearProductCache()
+
 	ctx.JSON(200, models.Response{
 		Success: true,
 		Message: "Product image updated successfully",
@@ -883,7 +904,6 @@ func (pc *ProductController) UpdateProductImage(ctx *gin.Context) {
 		},
 	})
 }
-
 
 // GetFavoriteProducts godoc
 // @Summary Get favorite products
@@ -942,7 +962,7 @@ func (pc *ProductController) GetFavoriteProducts(ctx *gin.Context) {
 			"id":          id,
 			"title":       title,
 			"description": desc,
-			"basePrice":  price,
+			"basePrice":   price,
 			"image":       image,
 		})
 	}
@@ -1667,7 +1687,7 @@ func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
 				Success: false,
 				Message: "Fullname must be provided",
 			})
-			return 
+			return
 		}
 	}
 	if req.Email == "" {
@@ -1721,17 +1741,16 @@ func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
 	})
 }
 
-
 func (pc *ProductController) GetTypeProduct(ctx *gin.Context) {
-    sizes, _ := models.GetAllSizes(pc.DB)
-    variants, _ := models.GetAllVariants(pc.DB)
+	sizes, _ := models.GetAllSizes(pc.DB)
+	variants, _ := models.GetAllVariants(pc.DB)
 
-    ctx.JSON(200, models.Response{
-        Success: true,
-        Message: "Master data fetched successfully",
-        Data: models.ProductTypeResponse{
-            Sizes:      sizes,
-            Variants:   variants,
-        },
-    })
+	ctx.JSON(200, models.Response{
+		Success: true,
+		Message: "Master data fetched successfully",
+		Data: models.ProductTypeResponse{
+			Sizes:    sizes,
+			Variants: variants,
+		},
+	})
 }
