@@ -4,15 +4,13 @@ CREATE TABLE users(
     email VARCHAR(100) NOT NULL UNIQUE, 
     password VARCHAR(100) NOT NULL,
     role VARCHAR(100),
+    reset_token TEXT,
+    reset_expires TIMESTAMP,
+    reset_otp VARCHAR(25),
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now()
 );
 
-ALTER TABLE users
-ADD COLUMN reset_token TEXT,
-ADD COLUMN reset_expires TIMESTAMP;
-ALTER TABLE users
-ADD COLUMN reset_otp VARCHAR(25);
 
 CREATE TABLE profile(
     id SERIAL PRIMARY KEY,
@@ -26,15 +24,10 @@ CREATE TABLE profile(
 
 CREATE TABLE forgot_password(
     id SERIAL PRIMARY KEY,
-    user_id BIGINT UNIQUE REFERENCES users(id),
+    user_id BIGINT UNIQUE,
     token VARCHAR(100),
     expires_at TIMESTAMP DEFAULT now(),
-    created_at TIMESTAMP DEFAULT now()
-); 
-
-ALTER TABLE forgot_password
-DROP CONSTRAINT forgot_password_user_id_fkey;
-
-ALTER TABLE forgot_password
-ADD CONSTRAINT forgot_password_user_id_fkey
-FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
+    created_at TIMESTAMP DEFAULT now(),
+    CONSTRAINT forgot_password_user_id_fkey
+        FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);

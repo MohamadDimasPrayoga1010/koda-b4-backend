@@ -1,13 +1,11 @@
 CREATE TABLE recommended_products (
     product_id BIGINT NOT NULL,
     recommended_id BIGINT NOT NULL,
+    created_at TIMESTAMP DEFAULT NOW(),
     PRIMARY KEY (product_id, recommended_id),
     CONSTRAINT fk_product FOREIGN KEY (product_id) REFERENCES products(id) ON DELETE CASCADE,
     CONSTRAINT fk_recommended FOREIGN KEY (recommended_id) REFERENCES products(id) ON DELETE CASCADE
 );
-
-ALTER TABLE recommended_products
-ADD COLUMN created_at TIMESTAMP DEFAULT NOW();
 
 
 CREATE TABLE carts (
@@ -39,17 +37,11 @@ CREATE TABLE transactions (
     status VARCHAR(50) DEFAULT 'pending',
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (user_id) REFERENCES users(id),
+    FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
     FOREIGN KEY (payment_method_id) REFERENCES payment_methods(id),
     FOREIGN KEY (shipping_id) REFERENCES shippings(id)
 );
 
-ALTER TABLE transactions
-DROP CONSTRAINT transactions_user_id_fkey;
-
-ALTER TABLE transactions
-ADD CONSTRAINT transactions_user_id_fkey
-FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE;
 
 
 CREATE TABLE transaction_items (

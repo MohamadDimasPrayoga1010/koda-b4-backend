@@ -9,10 +9,9 @@ CREATE TABLE payment_methods (
 CREATE TABLE shippings (
     id SERIAL PRIMARY KEY,
     name VARCHAR(50) UNIQUE
+    additional_price INT DEFAULT 0;
 );
 
-ALTER TABLE shippings
-ADD COLUMN additional_price INT DEFAULT 0;
 
 CREATE TABLE status (
     id SERIAL PRIMARY KEY,

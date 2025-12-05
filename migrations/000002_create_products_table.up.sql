@@ -19,18 +19,14 @@ CREATE TABLE products(
     stock INT,
     category_id BIGINT REFERENCES categories(id),
     base_price NUMERIC,
+    is_favorite BOOLEAN DEFAULT false,
+    is_flashsale BOOLEAN DEFAULT false,
+    rating NUMERIC(2,1),
     created_at TIMESTAMP DEFAULT now(),
     updated_at TIMESTAMP DEFAULT now(),
-    deleted_at TIMESTAMP DEFAULT now()
-); 
+    deleted_at TIMESTAMP DEFAULT NULL
+);
 
-ALTER TABLE products ALTER COLUMN deleted_at SET DEFAULT NULL;
-ALTER TABLE products
-ADD COLUMN is_favorite BOOLEAN DEFAULT false;
-ALTER TABLE products
-ADD COLUMN is_flashsale BOOLEAN DEFAULT false;
-ALTER TABLE products
-ADD COLUMN rating NUMERIC(2,1);
 
 CREATE TABLE product_variants (
     id SERIAL PRIMARY KEY,
