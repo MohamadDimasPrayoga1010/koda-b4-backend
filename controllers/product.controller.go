@@ -1667,7 +1667,7 @@ func (pc *ProductController) CreateTransaction(ctx *gin.Context) {
 				Success: false,
 				Message: "Fullname must be provided",
 			})
-			return
+			return 
 		}
 	}
 	if req.Email == "" {
