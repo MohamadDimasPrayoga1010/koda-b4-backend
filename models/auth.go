@@ -9,11 +9,11 @@ import (
 
 
 type UserRegister struct {
-    Fullname string `json:"fullname" binding:"required"`
-    Email    string `json:"email" binding:"required,email"`
-    Password string `json:"password" binding:"required,min=6"`
+    Fullname string `json:"fullname" validate:"required"`
+    Email    string `json:"email" validate:"required,email"`
+    Password string `json:"password" validate:"required,min=6"`
     Role     string `json:"role"`
-} 
+}
 
 
 type UserResponse struct {
@@ -27,10 +27,9 @@ type UserResponse struct {
 }
 
 type UserLogin struct {
-    Email    string `json:"email" binding:"required,email"`
-    Password string `json:"password" binding:"required"`
+    Email    string `json:"email" validate:"required,email"`
+    Password string `json:"password" validate:"required"`
 }
-
 
 type ForgotPasswordRequest struct {
     Email string `json:"email" binding:"required,email"`

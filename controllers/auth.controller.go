@@ -22,11 +22,11 @@ type AuthController struct {
 // @Tags         Auth
 // @Accept       json
 // @Produce      json
-// @Param login body models.UserLogin true "Login Payload"
-// @Success      201  {object}  models.Response{data=models.UserResponse} "User or Admin registered successfully"
-// @Failure      400  {object}  models.Response "Invalid request body or password too short"
-// @Failure      409  {object}  models.Response "Email already registered"
-// @Failure      500  {object}  models.Response "Internal server error"
+// @Param        body  body      models.UserRegister  true  "Register Payload"
+// @Success      201   {object}  models.Response{data=models.UserResponse}  "User or Admin registered successfully"
+// @Failure      400   {object}  models.Response  "Invalid request body or validation failed"
+// @Failure      409   {object}  models.Response  "Email already registered"
+// @Failure      500   {object}  models.Response  "Internal server error"
 // @Router       /auth/register [post]
 func (ac *AuthController) Register(ctx *gin.Context) {
 	var req models.UserRegister
@@ -35,6 +35,17 @@ func (ac *AuthController) Register(ctx *gin.Context) {
 		ctx.JSON(400, models.Response{
 			Success: false,
 			Message: "Invalid request body",
+			Data: err.Error(),
+		})
+		return
+	}
+
+	if err := libs.Validate.Struct(req); err != nil {
+		errors := libs.FormatValidationError(err)
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Validation failed",
+			Data:    errors,
 		})
 		return
 	}
@@ -94,14 +105,24 @@ func (ac *AuthController) Register(ctx *gin.Context) {
 // @Router       /auth/login [post]
 func (ac *AuthController) Login(ctx *gin.Context) {
 	var input struct {
-		Email    string `json:"email" binding:"required,email"`
-		Password string `json:"password" binding:"required"`
+		Email    string `json:"email" validate:"required,email"`
+		Password string `json:"password" validate:"required"`
 	}
 
 	if err := ctx.ShouldBindJSON(&input); err != nil {
 		ctx.JSON(400, models.Response{
 			Success: false,
 			Message: "Invalid request body",
+		})
+		return
+	}
+
+		if err := libs.Validate.Struct(input); err != nil {
+		errors := libs.FormatValidationError(err)
+		ctx.JSON(400, models.Response{
+			Success: false,
+			Message: "Validation failed",
+			Data:    errors,
 		})
 		return
 	}
@@ -154,7 +175,6 @@ func (ac *AuthController) Login(ctx *gin.Context) {
 // @Failure      404   {object}  models.Response
 // @Failure      500   {object}  models.Response
 // @Router       /auth/forgot-password [post]
-
 func (ac *AuthController) ForgotPassword(ctx *gin.Context) {
 	var req models.ForgotPasswordRequest
 	if err := ctx.ShouldBindJSON(&req); err != nil {
