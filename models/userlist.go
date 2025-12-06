@@ -32,13 +32,13 @@ type Profile struct {
 }
 
 type AdminUserRequest struct {
-	Fullname string                `form:"fullname" binding:"required"`
-	Email    string                `form:"email" binding:"required,email"`
-	Password string                `form:"password" binding:"required,min=6"`
-	Phone    string                `form:"phone"`
-	Address  string                `form:"address"`
-	Image    *multipart.FileHeader `form:"image"`
-	Role     string                `form:"role" binding:"required"`
+    Fullname string                `form:"fullname" binding:"required" validate:"required,min=3"`
+    Email    string                `form:"email" binding:"required,email" validate:"required,email"`
+    Password string                `form:"password" binding:"required,min=6" validate:"required,min=6"`
+    Phone    string                `form:"phone" validate:"omitempty,min=10"`
+    Address  string                `form:"address" validate:"omitempty"`
+    Role     string                `form:"role" binding:"required" validate:"required,oneof=admin staff user"`
+    Image    *multipart.FileHeader `form:"image" validate:"omitempty"`
 }
 
 func AddUser(db *pgxpool.Pool, fullname, email, password, role string, phone, address string, imagePath string,) (*UserList, *Profile, error) {
