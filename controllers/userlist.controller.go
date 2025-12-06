@@ -243,137 +243,152 @@ func (uc *UserController) GetUserByID(ctx *gin.Context) {
 // @Failure 500 {object} models.Response
 // @Router /admin/users [post]
 func (auc *UserController) AddUser(ctx *gin.Context) {
-	var req models.AdminUserRequest
+    var req models.AdminUserRequest
 
-	if err := ctx.ShouldBindWith(&req, binding.FormMultipart); err != nil {
-		ctx.JSON(400, models.Response{
-			Success: false,
-			Message: "Request tidak valid",
-			Data:    err.Error(),
-		})
-		return
-	}
+    if err := ctx.ShouldBindWith(&req, binding.FormMultipart); err != nil {
+        errors := libs.FormatAdminUserValidationError(err)
 
-	if req.Image != nil {
-		const maxSize = 2 * 1024 * 1024
-		if req.Image.Size > maxSize {
-			ctx.JSON(400, models.Response{
-				Success: false,
-				Message: "File terlalu besar (max 2MB): " + req.Image.Filename,
-			})
-			return
-		}
+        ctx.JSON(400, models.Response{
+            Success: false,
+            Message: "Validasi gagal",
+            Data:    errors,
+        })
+        return
+    }
 
-		allowedExts := []string{".jpg", ".jpeg", ".png"}
-		ext := strings.ToLower(filepath.Ext(req.Image.Filename))
+    if err := libs.Validate.Struct(req); err != nil {
+        errors := libs.FormatAdminUserValidationError(err)
 
-		valid := false
-		for _, v := range allowedExts {
-			if v == ext {
-				valid = true
-				break
-			}
-		}
+        ctx.JSON(400, models.Response{
+            Success: false,
+            Message: "Validasi gagal",
+            Data:    errors,
+        })
+        return
+    }
 
-		if !valid {
-			ctx.JSON(400, models.Response{
-				Success: false,
-				Message: "Format file tidak didukung (jpg/jpeg/png): " + req.Image.Filename,
-			})
-			return
-		}
-	}
+    if req.Image != nil {
+        const maxSize = 2 * 1024 * 1024
+        if req.Image.Size > maxSize {
+            ctx.JSON(400, models.Response{
+                Success: false,
+                Message: "File terlalu besar (max 2MB): " + req.Image.Filename,
+            })
+            return
+        }
 
-	uploadDir := "./uploads/users"
-	os.MkdirAll(uploadDir, os.ModePerm)
+        allowedExts := []string{".jpg", ".jpeg", ".png"}
+        ext := strings.ToLower(filepath.Ext(req.Image.Filename))
 
-	useCloudinary := os.Getenv("CLOUDINARY_API_KEY") != ""
+        valid := false
+        for _, v := range allowedExts {
+            if v == ext {
+                valid = true
+                break
+            }
+        }
 
-	var savedImage string
+        if !valid {
+            ctx.JSON(400, models.Response{
+                Success: false,
+                Message: "Format file tidak didukung (jpg/jpeg/png): " + req.Image.Filename,
+            })
+            return
+        }
+    }
 
-	if req.Image != nil {
-		ext := filepath.Ext(req.Image.Filename)
-		name := strings.TrimSuffix(req.Image.Filename, ext)
-		name = strings.ReplaceAll(name, " ", "_")
+    uploadDir := "./uploads/users"
+    os.MkdirAll(uploadDir, os.ModePerm)
 
-		if useCloudinary {
-			url, err := libs.UploadFile(req.Image, "users")
-			if err != nil {
-				ctx.JSON(500, models.Response{
-					Success: false,
-					Message: "Failed to upload file to Cloudinary",
-					Data:    err.Error(),
-				})
-				return
-			}
-			savedImage = url
+    useCloudinary := os.Getenv("CLOUDINARY_API_KEY") != ""
 
-		} else {
-			filename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), name, ext)
-			fullPath := filepath.Join(uploadDir, filename)
+    var savedImage string
 
-			if err := ctx.SaveUploadedFile(req.Image, fullPath); err != nil {
-				ctx.JSON(500, models.Response{
-					Success: false,
-					Message: "Failed to save file locally",
-					Data:    err.Error(),
-				})
-				return
-			}
+    if req.Image != nil {
+        ext := filepath.Ext(req.Image.Filename)
+        name := strings.TrimSuffix(req.Image.Filename, ext)
+        name = strings.ReplaceAll(name, " ", "_")
 
-			savedImage = filename
-		}
-	}
-	user, profile, err := models.AddUser(
-		auc.DB,
-		req.Fullname,
-		req.Email,
-		req.Password,
-		req.Role,
-		req.Phone,
-		req.Address,
-		savedImage, 
-	)
+        if useCloudinary {
+            url, err := libs.UploadFile(req.Image, "users")
+            if err != nil {
+                ctx.JSON(500, models.Response{
+                    Success: false,
+                    Message: "Failed to upload file to Cloudinary",
+                    Data:    err.Error(),
+                })
+                return
+            }
+            savedImage = url
 
-	if err != nil {
-		if err.Error() == "email already exists" {
-			ctx.JSON(409, models.Response{
-				Success: false,
-				Message: "Email sudah digunakan",
-			})
-			return
-		}
+        } else {
+            filename := fmt.Sprintf("%d_%s%s", time.Now().UnixNano(), name, ext)
+            fullPath := filepath.Join(uploadDir, filename)
 
-		ctx.JSON(500, models.Response{
-			Success: false,
-			Message: "Gagal membuat user",
-			Data:    err.Error(),
-		})
-		return
-	}
+            if err := ctx.SaveUploadedFile(req.Image, fullPath); err != nil {
+                ctx.JSON(500, models.Response{
+                    Success: false,
+                    Message: "Failed to save file locally",
+                    Data:    err.Error(),
+                })
+                return
+            }
 
-	type UserResponse struct {
-		ID       int64           `json:"id"`
-		Fullname string          `json:"fullname"`
-		Email    string          `json:"email"`
-		Role     string          `json:"role"`
-		Profile  *models.Profile `json:"profile,omitempty"`
-	}
+            savedImage = filename
+        }
+    }
 
-	resp := UserResponse{
-		ID:       user.ID,
-		Fullname: user.Fullname,
-		Email:    user.Email,
-		Role:     user.Role,
-		Profile:  profile,
-	}
+    user, profile, err := models.AddUser(
+        auc.DB,
+        req.Fullname,
+        req.Email,
+        req.Password,
+        req.Role,
+        req.Phone,
+        req.Address,
+        savedImage,
+    )
 
-	ctx.JSON(201, models.Response{
-		Success: true,
-		Message: "User berhasil dibuat",
-		Data:    resp,
-	})
+    if err != nil {
+        if err.Error() == "email already exists" {
+            ctx.JSON(409, models.Response{
+                Success: false,
+                Message: "Email sudah digunakan",
+            })
+            return
+        }
+
+        ctx.JSON(500, models.Response{
+            Success: false,
+            Message: "Gagal membuat user",
+            Data:    err.Error(),
+        })
+        return
+    }
+
+    type UserResponse struct {
+        ID       int64           `json:"id"`
+        Fullname string          `json:"fullname"`
+        Email    string          `json:"email"`
+        Role     string          `json:"role"`
+        Profile  *models.Profile `json:"profile,omitempty"`
+    }
+
+    resp := UserResponse{
+        ID:       user.ID,
+        Fullname: user.Fullname,
+        Email:    user.Email,
+        Role:     user.Role,
+        Profile:  profile,
+    }
+
+    ctx.JSON(201, models.Response{
+        Success: true,
+        Message: "User berhasil dibuat",
+        Data:    resp,
+    })
 }
+
 
 
 // EditUser godoc
@@ -435,7 +450,7 @@ func (auc *UserController) EditUser(ctx *gin.Context) {
 		userID,
 		fullname, email, password,
 		phone, address,
-		file, 
+		file,
 	)
 
 	if err != nil {
@@ -456,7 +471,6 @@ func (auc *UserController) EditUser(ctx *gin.Context) {
 		},
 	})
 }
-
 
 // DeleteUser godoc
 // @Summary Delete a user
