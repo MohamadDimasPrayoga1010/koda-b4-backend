@@ -20,4 +20,5 @@ func CategoryRoutes(r *gin.Engine, pg *pgxpool.Pool) {
 		admin.PATCH("/categories/:id", cc.UpdateCategory)
 		admin.DELETE("/categories/:id", cc.DeleteCategory)
 	}
+	r.GET("/category", cc.GetCategories)
 }
